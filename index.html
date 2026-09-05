@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Finanze Famiglia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<style>
+:root{
+  --ink:#16202b;
+  --ink-soft:#4b5a68;
+  --paper:#f4f5f2;
+  --surface:#ffffff;
+  --line:#dde1dc;
+  --line-strong:#c3cac2;
+  --green:#2f6f52;
+  --green-bg:#e8f1eb;
+  --red:#a93a32;
+  --red-bg:#f8eae9;
+  --amber:#b1791f;
+  --amber-bg:#fbf1de;
+  --accent:#1f4d63;
+  --radius:10px;
+  --shadow:0 1px 2px rgba(22,32,43,.06), 0 6px 18px rgba(22,32,43,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Source Sans 3', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background:var(--paper); color:var(--ink);
+  font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.num{font-variant-numeric:tabular-nums}
+button{font-family:inherit;font-size:inherit}
+input,select,textarea{font-family:inherit;font-size:15px}
+a{color:var(--accent)}
+
+/* layout */
+#root{min-height:100vh}
+.shell{display:flex;min-height:100vh}
+.side{
+  width:224px;flex:0 0 224px;background:var(--ink);color:#e7ecef;
+  padding:20px 12px;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow:auto;
+}
+.brand{padding:0 10px 18px;display:flex;flex-direction:column;gap:2px}
+.brand b{font-size:17px;font-weight:600;letter-spacing:.01em}
+.brand span{font-size:12.5px;color:#8ea0ad}
+.navlink{
+  display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;
+  color:#c3cfd8;background:none;border:0;cursor:pointer;text-align:left;width:100%;font-size:14.5px;
+}
+.navlink:hover{background:rgba(255,255,255,.07);color:#fff}
+.navlink.on{background:rgba(255,255,255,.13);color:#fff;font-weight:600}
+.navlink .ic{width:18px;text-align:center;opacity:.85}
+.navsep{margin:14px 10px 6px;font-size:11.5px;color:#7d8f9c;letter-spacing:.06em}
+.side-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid rgba(255,255,255,.12);font-size:13px;color:#93a4b1}
+.main{flex:1;min-width:0;padding:26px 30px 70px}
+.topbar{display:none}
+
+@media(max-width:900px){
+  .shell{flex-direction:column}
+  .side{display:none}
+  .side.open{display:flex;position:fixed;inset:0;width:100%;height:100vh;z-index:60}
+  .topbar{
+    display:flex;align-items:center;gap:10px;justify-content:space-between;
+    background:var(--ink);color:#fff;padding:11px 14px;position:sticky;top:0;z-index:40
+  }
+  .topbar b{font-weight:600}
+  .burger{background:rgba(255,255,255,.14);border:0;color:#fff;border-radius:8px;padding:6px 11px;font-size:17px;cursor:pointer}
+  .main{padding:16px 14px 80px}
+}
+
+h1{font-size:24px;font-weight:600;margin:0 0 3px}
+.sub{color:var(--ink-soft);margin:0 0 20px;font-size:14px}
+h2{font-size:16.5px;font-weight:600;margin:0}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.card + .card{margin-top:14px}
+.cardhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.kpi .lab{font-size:13px;color:var(--ink-soft)}
+.kpi .val{font-size:23px;font-weight:600;margin-top:3px}
+.kpi .hint{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+
+.btn{background:var(--ink);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{background:#22313f}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line-strong)}
+.btn.ghost:hover{background:#eef0ec}
+.btn.danger{background:var(--red)}
+.btn.sm{padding:5px 10px;font-size:13px;font-weight:500}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+
+label.f{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:4px}
+.inp,select.inp,textarea.inp{
+  width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:8px;background:#fff;color:var(--ink)
+}
+.inp:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+.field{margin-bottom:11px}
+
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:600;font-size:12.5px;color:var(--ink-soft);padding:7px 9px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+td{padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.ta-r{text-align:right}
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line-strong);background:#f6f7f5;white-space:nowrap}
+.pill.in{color:var(--green);background:var(--green-bg);border-color:#c6ddd0}
+.pill.out{color:var(--red);background:var(--red-bg);border-color:#eccfcc}
+.pill.warn{color:var(--amber);background:var(--amber-bg);border-color:#ecd9b3}
+.in-c{color:var(--green)}
+.out-c{color:var(--red)}
+.warn-c{color:var(--amber)}
+
+.empty{padding:26px 10px;text-align:center;color:var(--ink-soft);font-size:14px}
+.muted{color:var(--ink-soft)}
+.small{font-size:13px}
+
+.modal-bg{position:fixed;inset:0;background:rgba(15,22,29,.45);display:flex;align-items:flex-start;justify-content:center;padding:26px 14px;z-index:80;overflow:auto}
+.modal{background:var(--surface);border-radius:12px;width:100%;max-width:560px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal.wide{max-width:920px}
+.modal h2{margin-bottom:14px}
+
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--ink)}
+.login{background:var(--surface);border-radius:14px;padding:28px;width:100%;max-width:370px;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.login h1{font-size:21px;margin-bottom:2px}
+.login .sub{margin-bottom:20px}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line-strong);margin-bottom:16px;overflow-x:auto}
+.tab{background:none;border:0;padding:8px 13px;cursor:pointer;color:var(--ink-soft);border-bottom:2px solid transparent;white-space:nowrap;font-size:14.5px}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+
+.bar{height:7px;background:#e9ebe7;border-radius:4px;overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--accent)}
+
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+.filters .field{margin-bottom:0;min-width:135px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;z-index:200;box-shadow:var(--shadow);font-size:14px}
+.rowline{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+.rowline:last-child{border-bottom:0}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const {useState, useEffect, useMemo, useRef, useCallback} = React;
+
+/* ─────────────── Firebase ─────────────── */
+const firebaseConfig = {
+  apiKey: "AIzaSyBDKokW_yIRycBGQHOONhgAXBpP1HU6p7k",
+  authDomain: "finanze-famiglia-22175.firebaseapp.com",
+  databaseURL: "https://finanze-famiglia-22175-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "finanze-famiglia-22175",
+  storageBucket: "finanze-famiglia-22175.firebasestorage.app",
+  messagingSenderId: "182817527147",
+  appId: "1:182817527147:web:8775e603ab7a8efa74682e"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const ROOT = "finanze";
+const ref = (p) => db.ref(ROOT + "/" + p);
+
+/* ─────────────── utils ─────────────── */
+const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function eur(n, seg) {
+  const v = Number(n) || 0;
+  const s = v.toLocaleString("it-IT", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return (seg && v > 0 ? "+" : "") + s + " €";
+}
+function dmy(iso) {
+  if (!iso) return "";
+  const p = String(iso).slice(0, 10).split("-");
+  return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : iso;
+}
+function mKey(iso) { return String(iso || "").slice(0, 7); }
+function mLabel(key) {
+  const [y, m] = key.split("-");
+  return MESI[Number(m) - 1] + " " + y;
+}
+function addMonths(key, n) {
+  let [y, m] = key.split("-").map(Number);
+  m += n;
+  y += Math.floor((m - 1) / 12);
+  m = ((m - 1) % 12 + 12) % 12 + 1;
+  return y + "-" + String(m).padStart(2, "0");
+}
+function daysInMonth(key) {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function dateInMonth(key, day) {
+  const d = Math.min(Number(day) || 1, daysInMonth(key));
+  return key + "-" + String(d).padStart(2, "0");
+}
+function num(v) {
+  if (typeof v === "number") return v;
+  if (v == null) return 0;
+  let s = String(v).replace(/[€\s]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+async function sha256(txt) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(txt));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+const obj2arr = (o) => o ? Object.keys(o).map(k => ({id: k, ...o[k]})) : [];
+function byName(a, b) { return String(a.nome || "").localeCompare(String(b.nome || ""), "it"); }
+function download(name, blob) {
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = u; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 3000);
+}
+
+/* excel date helpers */
+function excelDate(v) {
+  if (v == null || v === "") return "";
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === "number") {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return d.toISOString().slice(0, 10);
+  }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0");
+  m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/);
+  if (m) {
+    let y = m[3].length === 2 ? "20" + m[3] : m[3];
+    return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+  }
+  return "";
+}
+
+/* ─────────────── hooks ─────────────── */
+function useNode(path) {
+  const [val, setVal] = useState(null);
+  useEffect(() => {
+    const r = ref(path);
+    const cb = r.on("value", s => setVal(s.val()));
+    return () => r.off("value", cb);
+  }, [path]);
+  return val;
+}
+
+/* ─────────────── small UI ─────────────── */
+function Field({label, children}) {
+  return <div className="field"><label className="f">{label}</label>{children}</div>;
+}
+function Modal({title, onClose, children, wide}) {
+  return (
+    <div className="modal-bg" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className={"modal" + (wide ? " wide" : "")}>
+        <div className="cardhead"><h2>{title}</h2>
+          <button className="btn ghost sm" onClick={onClose}>Chiudi</button></div>
+        {children}
+      </div>
+    </div>
+  );
+}
+function Empty({children}) { return <div className="empty">{children}</div>; }
+
+/* ─────────────── LOGIN ─────────────── */
+function Login({utenti, onLogin, seeding}) {
+  const [u, setU] = useState("");
+  const [p, setP] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr(""); setBusy(true);
+    try {
+      const h = await sha256(p);
+      const found = obj2arr(utenti).find(x =>
+        String(x.username || "").toLowerCase() === u.trim().toLowerCase() && x.passwordHash === h);
+      if (!found) { setErr("Nome utente o password non corretti."); setBusy(false); return; }
+      onLogin(found);
+    } catch (ex) { setErr("Accesso non riuscito: " + ex.message); }
+    setBusy(false);
+  }
+
+  return (
+    <div className="login-wrap">
+      <form className="login" onSubmit={submit}>
+        <h1>Finanze Famiglia</h1>
+        <p className="sub">Entra con il tuo nome utente.</p>
+        <Field label="Nome utente">
+          <input className="inp" value={u} onChange={e => setU(e.target.value)} autoFocus autoCapitalize="none" />
+        </Field>
+        <Field label="Password">
+          <input className="inp" type="password" value={p} onChange={e => setP(e.target.value)} />
+        </Field>
+        {err && <p className="small out-c" style={{margin: "0 0 10px"}}>{err}</p>}
+        <button className="btn" style={{width: "100%"}} disabled={busy || seeding}>
+          {busy ? "Verifica…" : "Entra"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/* ─────────────── DASHBOARD ─────────────── */
+function Dashboard({data, saldi, prev, go}) {
+  const {movimenti, scadenze, conti, categorie} = data;
+  const oggi = todayISO();
+  const mese = mKey(oggi);
+
+  const delMese = movimenti.filter(m => mKey(m.data) === mese);
+  const entrate = delMese.filter(m => m.tipo === "Entrata").reduce((s, m) => s + num(m.importo), 0);
+  const uscite = delMese.filter(m => m.tipo === "Uscita").reduce((s, m) => s + num(m.importo), 0);
+
+  const prossime = scadenze
+    .filter(s => !s.pagata && s.dataScadenza >= oggi)
+    .sort((a, b) => a.dataScadenza.localeCompare(b.dataScadenza))
+    .slice(0, 6);
+  const scadute = scadenze.filter(s => !s.pagata && s.dataScadenza < oggi);
+
+  const liquidita = conti.filter(c => c.tipo !== "carta")
+    .reduce((s, c) => s + (saldi[c.id] || 0), 0);
+  const cartaDaAddebitare = conti.filter(c => c.tipo === "carta")
+    .reduce((s, c) => s + Math.abs(saldi[c.id] || 0), 0);
+
+  const primoRosso = prev.righe.find(r => r.saldoFine < prev.soglia);
+
+  const topCat = useMemo(() => {
+    const map = {};
+    delMese.filter(m => m.tipo === "Uscita").forEach(m => {
+      const c = categorie.find(x => x.id === m.categoriaId);
+      const k = c ? c.nome : "Senza categoria";
+      map[k] = (map[k] || 0) + num(m.importo);
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [movimenti, categorie]);
+  const maxCat = topCat.length ? topCat[0][1] : 1;
+
+  return (
+    <div>
+      <h1>Situazione di oggi</h1>
+      <p className="sub">{mLabel(mese)} · aggiornato al {dmy(oggi)}</p>
+
+      <div className="grid g4" style={{marginBottom: 14}}>
+        <div className="kpi">
+          <div className="lab">Liquidità sui conti</div>
+          <div className="val num">{eur(liquidita)}</div>
+          <div className="hint">{conti.filter(c => c.tipo !== "carta").length} conti</div>
+        </div>
+        <div className="kpi">
+          <div className="lab">Carte da addebitare</div>
+          <div className="val num out-c">{eur(cartaDaAddebitare)}</div>
+          <div className="hint">spese non ancora sul conto</div>
+        </div>
+        <div className="kpi">
+          <div className="lab">Entrate del mese</div>
+          <div className="val num in-c">{eur(entrate)}</div>
+        </div>
+        <div className="kpi">
+          <div className="lab">Uscite del mese</div>
+          <div className="val num out-c">{eur(uscite)}</div>
+          <div className="hint">saldo {eur(entrate - uscite, true)}</div>
+        </div>
+      </div>
+
+      {primoRosso && (
+        <div className="card" style={{borderColor: "#ecd9b3", background: "var(--amber-bg)"}}>
+          <b>Attenzione alla giacenza.</b>{" "}
+          <span>A fine {mLabel(primoRosso.mese)} il saldo previsto è {eur(primoRosso.saldoFine)}, sotto la soglia di sicurezza di {eur(prev.soglia)}.</span>{" "}
+          <button className="btn sm ghost" onClick={() => go("previsioni")}>Vedi la previsione</button>
+        </div>
+      )}
+
+      <div className="grid g2" style={{marginTop: 14}}>
+        <div className="card" style={{marginTop: 0}}>
+          <div className="cardhead">
+            <h2>Prossime scadenze</h2>
+            <button className="btn ghost sm" onClick={() => go("scadenze")}>Tutte</button>
+          </div>
+          {scadute.length > 0 &&
+            <p className="small out-c" style={{marginTop: 0}}>
+              {scadute.length} {scadute.length === 1 ? "scadenza è passata" : "scadenze sono passate"} e risultano da pagare.
+            </p>}
+          {prossime.length === 0 ? <Empty>Nessuna scadenza in arrivo.</Empty> :
+            prossime.map(s => (
+              <div className="rowline" key={s.id}>
+                <div>
+                  <div>{s.descrizione}</div>
+                  <div className="small muted">{dmy(s.dataScadenza)} · {s.ambito === "appartamento" ? "Appartamento" : "Famiglia"}</div>
+                </div>
+                <div className="num" style={{whiteSpace: "nowrap"}}>{eur(s.importo)}</div>
+              </div>
+            ))}
+        </div>
+
+        <div className="card" style={{marginTop: 0}}>
+          <div className="cardhead">
+            <h2>Dove sono andate le uscite</h2>
+            <button className="btn ghost sm" onClick={() => go("movimenti")}>Movimenti</button>
+          </div>
+          {topCat.length === 0 ? <Empty>Nessuna uscita registrata questo mese.</Empty> :
+            topCat.map(([nome, tot]) => (
+              <div key={nome} style={{marginBottom: 10}}>
+                <div style={{display: "flex", justifyContent: "space-between", fontSize: 14}}>
+                  <span>{nome}</span><span className="num">{eur(tot)}</span>
+                </div>
+                <div className="bar"><i style={{width: (tot / maxCat * 100) + "%"}} /></div>
+              </div>
+            ))}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="cardhead"><h2>Conti e carte</h2>
+          <button className="btn ghost sm" onClick={() => go("conti")}>Gestisci</button></div>
+        {conti.length === 0 ? <Empty>Non hai ancora inserito conti. Aprili da “Conti e carte”.</Empty> :
+          <div className="tablewrap"><table>
+            <thead><tr><th>Conto</th><th>Tipo</th><th className="ta-r">Saldo</th></tr></thead>
+            <tbody>{conti.map(c => (
+              <tr key={c.id}>
+                <td>{c.nome}</td>
+                <td><span className="pill">{c.tipo === "carta" ? "Carta di credito" : "Conto corrente"}</span></td>
+                <td className="ta-r num">{eur(saldi[c.id] || 0)}</td>
+              </tr>))}</tbody>
+          </table></div>}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── MOVIMENTI ─────────────── */
+const VUOTO_MOV = () => ({
+  data: todayISO(), descrizione: "", tipo: "Uscita", importo: "",
+  membroId: "", contoId: "", categoriaId: "", note: ""
+});
+
+function Movimenti({data, log, utente}) {
+  const {movimenti, membri, conti, categorie} = data;
+  const [edit, setEdit] = useState(null);
+  const [imp, setImp] = useState(false);
+  const [f, setF] = useState({mese: "", membro: "", conto: "", categoria: "", tipo: "", q: ""});
+
+  const mesiDisponibili = useMemo(() => {
+    const s = new Set(movimenti.map(m => mKey(m.data)).filter(Boolean));
+    return Array.from(s).sort().reverse();
+  }, [movimenti]);
+
+  const lista = useMemo(() => movimenti.filter(m => {
+    if (f.mese && mKey(m.data) !== f.mese) return false;
+    if (f.membro && m.membroId !== f.membro) return false;
+    if (f.conto && m.contoId !== f.conto) return false;
+    if (f.categoria && m.categoriaId !== f.categoria) return false;
+    if (f.tipo && m.tipo !== f.tipo) return false;
+    if (f.q && !String(m.descrizione || "").toLowerCase().includes(f.q.toLowerCase())) return false;
+    return true;
+  }).sort((a, b) => String(b.data).localeCompare(String(a.data))), [movimenti, f]);
+
+  const tot = lista.reduce((s, m) => s + (m.tipo === "Entrata" ? num(m.importo) : -num(m.importo)), 0);
+  const nomeDi = (arr, id, fb) => { const x = arr.find(a => a.id === id); return x ? x.nome : (fb || "—"); };
+
+  async function salva(m) {
+    const id = m.id || uid();
+    const rec = {
+      data: m.data, descrizione: m.descrizione.trim(), tipo: m.tipo,
+      importo: num(m.importo), membroId: m.membroId || "", contoId: m.contoId || "",
+      categoriaId: m.categoriaId || "", note: m.note || "",
+      creatoDa: m.creatoDa || utente.username, modificatoDa: utente.username, modificatoIl: Date.now()
+    };
+    await ref("movimenti/" + id).set(rec);
+    log(m.id ? "Movimento modificato" : "Movimento aggiunto", rec.descrizione + " · " + eur(rec.importo));
+    setEdit(null);
+  }
+  async function elimina(m) {
+    if (!confirm("Eliminare “" + m.descrizione + "”?")) return;
+    await ref("movimenti/" + m.id).remove();
+    log("Movimento eliminato", m.descrizione + " · " + eur(m.importo));
+  }
+
+  return (
+    <div>
+      <h1>Movimenti</h1>
+      <p className="sub">Tutto quello che entra ed esce, per membro, conto e categoria.</p>
+
+      <div className="btnrow" style={{marginBottom: 14}}>
+        <button className="btn" onClick={() => setEdit(VUOTO_MOV())}>Aggiungi movimento</button>
+        <button className="btn ghost" onClick={() => setImp(true)}>Importa da Excel</button>
+      </div>
+
+      <div className="card">
+        <div className="filters">
+          <div className="field"><label className="f">Mese</label>
+            <select className="inp" value={f.mese} onChange={e => setF({...f, mese: e.target.value})}>
+              <option value="">Tutti</option>
+              {mesiDisponibili.map(k => <option key={k} value={k}>{mLabel(k)}</option>)}
+            </select></div>
+          <div className="field"><label className="f">Membro</label>
+            <select className="inp" value={f.membro} onChange={e => setF({...f, membro: e.target.value})}>
+              <option value="">Tutti</option>{membri.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+            </select></div>
+          <div className="field"><label className="f">Conto</label>
+            <select className="inp" value={f.conto} onChange={e => setF({...f, conto: e.target.value})}>
+              <option value="">Tutti</option>{conti.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select></div>
+          <div className="field"><label className="f">Categoria</label>
+            <select className="inp" value={f.categoria} onChange={e => setF({...f, categoria: e.target.value})}>
+              <option value="">Tutte</option>{categorie.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select></div>
+          <div className="field"><label className="f">Tipo</label>
+            <select className="inp" value={f.tipo} onChange={e => setF({...f, tipo: e.target.value})}>
+              <option value="">Tutti</option><option>Entrata</option><option>Uscita</option>
+            </select></div>
+          <div className="field" style={{flex: 1, minWidth: 160}}><label className="f">Cerca</label>
+            <input className="inp" value={f.q} onChange={e => setF({...f, q: e.target.value})} placeholder="descrizione" /></div>
+        </div>
+
+        <p className="small muted" style={{marginTop: 0}}>
+          {lista.length} movimenti · saldo del filtro <b className={tot < 0 ? "out-c" : "in-c"}>{eur(tot, true)}</b>
+        </p>
+
+        {lista.length === 0 ? <Empty>Nessun movimento con questi filtri.</Empty> :
+          <div className="tablewrap"><table>
+            <thead><tr>
+              <th>Data</th><th>Descrizione</th><th>Membro</th><th>Conto</th><th>Categoria</th>
+              <th className="ta-r">Importo</th><th></th>
+            </tr></thead>
+            <tbody>{lista.slice(0, 400).map(m => (
+              <tr key={m.id}>
+                <td className="num" style={{whiteSpace: "nowrap"}}>{dmy(m.data)}</td>
+                <td>{m.descrizione}
+                  {utente.ruolo === "admin" && m.creatoDa &&
+                    <div className="small muted">inserito da {m.creatoDa}</div>}</td>
+                <td>{nomeDi(membri, m.membroId)}</td>
+                <td>{nomeDi(conti, m.contoId)}</td>
+                <td>{nomeDi(categorie, m.categoriaId)}</td>
+                <td className={"ta-r num " + (m.tipo === "Entrata" ? "in-c" : "out-c")} style={{whiteSpace: "nowrap"}}>
+                  {(m.tipo === "Entrata" ? "+" : "−") + eur(num(m.importo))}</td>
+                <td className="ta-r" style={{whiteSpace: "nowrap"}}>
+                  <button className="btn ghost sm" onClick={() => setEdit(m)}>Apri</button>{" "}
+                  <button className="btn ghost sm" onClick={() => elimina(m)}>Elimina</button></td>
+              </tr>))}</tbody>
+          </table></div>}
+        {lista.length > 400 && <p className="small muted">Mostrati i primi 400. Restringi i filtri per vedere gli altri.</p>}
+      </div>
+
+      {edit && <FormMovimento m={edit} data={data} onSave={salva} onClose={() => setEdit(null)} />}
+      {imp && <ImportExcel data={data} utente={utente} log={log} onClose={() => setImp(false)} />}
+    </div>
+  );
+}
+
+function FormMovimento({m, data, onSave, onClose}) {
+  const [v, setV] = useState(m);
+  const set = (k, x) => setV(p => ({...p, [k]: x}));
+  const catFiltrate = data.categorie.filter(c => !c.tipo || c.tipo === "entrambe" ||
+    (v.tipo === "Entrata" ? c.tipo === "entrata" : c.tipo === "uscita"));
+  const ok = v.data && v.descrizione.trim() && num(v.importo) > 0;
+  return (
+    <Modal title={m.id ? "Modifica movimento" : "Nuovo movimento"} onClose={onClose}>
+      <div className="grid g2">
+        <Field label="Data"><input className="inp" type="date" value={v.data} onChange={e => set("data", e.target.value)} /></Field>
+        <Field label="Tipo">
+          <select className="inp" value={v.tipo} onChange={e => set("tipo", e.target.value)}>
+            <option>Uscita</option><option>Entrata</option></select></Field>
+      </div>
+      <Field label="Descrizione">
+        <input className="inp" value={v.descrizione} onChange={e => set("descrizione", e.target.value)} placeholder="es. Spesa Conad" /></Field>
+      <div className="grid g2">
+        <Field label="Importo (sempre positivo)">
+          <input className="inp num" inputMode="decimal" value={v.importo} onChange={e => set("importo", e.target.value)} placeholder="0,00" /></Field>
+        <Field label="Chi l'ha sostenuta">
+          <select className="inp" value={v.membroId} onChange={e => set("membroId", e.target.value)}>
+            <option value="">—</option>{data.membri.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}
+          </select></Field>
+      </div>
+      <div className="grid g2">
+        <Field label="Conto o carta">
+          <select className="inp" value={v.contoId} onChange={e => set("contoId", e.target.value)}>
+            <option value="">—</option>{data.conti.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}
+          </select></Field>
+        <Field label="Categoria">
+          <select className="inp" value={v.categoriaId} onChange={e => set("categoriaId", e.target.value)}>
+            <option value="">—</option>{catFiltrate.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}
+          </select></Field>
+      </div>
+      <Field label="Note"><input className="inp" value={v.note || ""} onChange={e => set("note", e.target.value)} /></Field>
+      <div className="btnrow" style={{marginTop: 8}}>
+        <button className="btn" disabled={!ok} onClick={() => onSave(v)}>Salva</button>
+        <button className="btn ghost" onClick={onClose}>Annulla</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ─────────────── IMPORT EXCEL ─────────────── */
+const COLONNE = ["Data", "Descrizione", "Tipo", "Importo", "Membro", "Conto", "Categoria", "Note"];
+
+function ImportExcel({data, utente, log, onClose}) {
+  const [righe, setRighe] = useState(null);
+  const [errore, setErrore] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [creaMancanti, setCreaMancanti] = useState(true);
+
+  function modello() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      COLONNE,
+      ["2026-09-01", "Spesa Conad", "Uscita", 62.4, "Mamma", "Conto BPER", "Alimentari", ""],
+      ["2026-09-05", "Stipendio", "Entrata", 1850, "Davide", "Conto BPER", "Stipendio", ""]
+    ]);
+    ws["!cols"] = COLONNE.map(() => ({wch: 18}));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Movimenti");
+    const out = XLSX.write(wb, {bookType: "xlsx", type: "array"});
+    download("modello-movimenti.xlsx", new Blob([out], {type: "application/octet-stream"}));
+  }
+
+  function leggi(file) {
+    setErrore("");
+    const r = new FileReader();
+    r.onload = ev => {
+      try {
+        const wb = XLSX.read(new Uint8Array(ev.target.result), {type: "array", cellDates: true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, {defval: ""});
+        if (!raw.length) { setErrore("Il file non contiene righe."); return; }
+        const norm = raw.map((r0, i) => {
+          const get = (k) => {
+            const key = Object.keys(r0).find(x => x.trim().toLowerCase() === k.toLowerCase());
+            return key ? r0[key] : "";
+          };
+          const dataI = excelDate(get("Data"));
+          const tipo = String(get("Tipo")).trim().toLowerCase().startsWith("e") ? "Entrata" : "Uscita";
+          const imp = Math.abs(num(get("Importo")));
+          return {
+            _n: i + 2, data: dataI, descrizione: String(get("Descrizione")).trim(), tipo, importo: imp,
+            membro: String(get("Membro")).trim(), conto: String(get("Conto")).trim(),
+            categoria: String(get("Categoria")).trim(), note: String(get("Note")).trim(),
+            _err: !dataI ? "data non valida" : (imp <= 0 ? "importo mancante" : "")
+          };
+        });
+        setRighe(norm);
+      } catch (ex) { setErrore("Non riesco a leggere il file: " + ex.message); }
+    };
+    r.readAsArrayBuffer(file);
+  }
+
+  const valide = righe ? righe.filter(r => !r._err) : [];
+  const scartate = righe ? righe.filter(r => r._err) : [];
+
+  const trova = (arr, nome) => arr.find(x => String(x.nome).trim().toLowerCase() === String(nome).trim().toLowerCase());
+
+  const mancanti = useMemo(() => {
+    if (!righe) return {membri: [], conti: [], categorie: []};
+    const m = new Set(), c = new Set(), k = new Set();
+    valide.forEach(r => {
+      if (r.membro && !trova(data.membri, r.membro)) m.add(r.membro);
+      if (r.conto && !trova(data.conti, r.conto)) c.add(r.conto);
+      if (r.categoria && !trova(data.categorie, r.categoria)) k.add(r.categoria);
+    });
+    return {membri: [...m], conti: [...c], categorie: [...k]};
+  }, [righe, data]);
+
+  async function importa() {
+    setBusy(true);
+    try {
+      const mapM = {}, mapC = {}, mapK = {};
+      data.membri.forEach(x => mapM[x.nome.toLowerCase()] = x.id);
+      data.conti.forEach(x => mapC[x.nome.toLowerCase()] = x.id);
+      data.categorie.forEach(x => mapK[x.nome.toLowerCase()] = x.id);
+
+      if (creaMancanti) {
+        for (const n of mancanti.membri) { const id = uid(); await ref("membri/" + id).set({nome: n}); mapM[n.toLowerCase()] = id; }
+        for (const n of mancanti.conti) { const id = uid(); await ref("conti/" + id).set({nome: n, tipo: "conto", saldoIniziale: 0, dataSaldo: ""}); mapC[n.toLowerCase()] = id; }
+        for (const n of mancanti.categorie) { const id = uid(); await ref("categorie/" + id).set({nome: n, tipo: "entrambe"}); mapK[n.toLowerCase()] = id; }
+      }
+      const batch = {};
+      valide.forEach(r => {
+        batch[uid()] = {
+          data: r.data, descrizione: r.descrizione || "(senza descrizione)", tipo: r.tipo,
+          importo: r.importo, membroId: mapM[r.membro.toLowerCase()] || "",
+          contoId: mapC[r.conto.toLowerCase()] || "", categoriaId: mapK[r.categoria.toLowerCase()] || "",
+          note: r.note, creatoDa: utente.username, modificatoDa: utente.username, modificatoIl: Date.now()
+        };
+      });
+      await ref("movimenti").update(batch);
+      log("Import da Excel", valide.length + " movimenti importati");
+      onClose();
+    } catch (ex) { setErrore("Import non riuscito: " + ex.message); }
+    setBusy(false);
+  }
+
+  return (
+    <Modal title="Importa movimenti da Excel" onClose={onClose} wide>
+      <p className="small muted" style={{marginTop: 0}}>
+        Le colonne attese sono: {COLONNE.join(", ")}. L'importo va sempre positivo, è la colonna Tipo a dare il segno.
+      </p>
+      <div className="btnrow" style={{marginBottom: 14}}>
+        <button className="btn ghost" onClick={modello}>Scarica il modello</button>
+        <label className="btn" style={{cursor: "pointer"}}>
+          Scegli il file
+          <input type="file" accept=".xlsx,.xls,.csv" style={{display: "none"}}
+            onChange={e => e.target.files[0] && leggi(e.target.files[0])} />
+        </label>
+      </div>
+      {errore && <p className="out-c small">{errore}</p>}
+
+      {righe && <>
+        <p className="small">
+          <b>{valide.length}</b> righe pronte
+          {scartate.length > 0 && <> · <span className="out-c">{scartate.length} scartate</span></>}
+        </p>
+        {scartate.length > 0 &&
+          <p className="small muted">Righe con problemi: {scartate.slice(0, 8).map(r => "riga " + r._n + " (" + r._err + ")").join(", ")}{scartate.length > 8 ? "…" : ""}</p>}
+
+        {(mancanti.membri.length + mancanti.conti.length + mancanti.categorie.length) > 0 &&
+          <div className="card" style={{background: "var(--amber-bg)", borderColor: "#ecd9b3"}}>
+            <p style={{margin: "0 0 6px"}}><b>Nomi non ancora presenti nell'app</b></p>
+            {mancanti.membri.length > 0 && <p className="small" style={{margin: 0}}>Membri: {mancanti.membri.join(", ")}</p>}
+            {mancanti.conti.length > 0 && <p className="small" style={{margin: 0}}>Conti: {mancanti.conti.join(", ")}</p>}
+            {mancanti.categorie.length > 0 && <p className="small" style={{margin: 0}}>Categorie: {mancanti.categorie.join(", ")}</p>}
+            <label className="small" style={{display: "block", marginTop: 8}}>
+              <input type="checkbox" checked={creaMancanti} onChange={e => setCreaMancanti(e.target.checked)} />{" "}
+              Creali automaticamente durante l'import
+            </label>
+          </div>}
+
+        <div className="tablewrap" style={{maxHeight: 260, overflow: "auto", marginTop: 12}}>
+          <table><thead><tr><th>Data</th><th>Descrizione</th><th>Tipo</th><th className="ta-r">Importo</th><th>Membro</th><th>Conto</th><th>Categoria</th></tr></thead>
+            <tbody>{righe.slice(0, 50).map(r => (
+              <tr key={r._n} style={r._err ? {opacity: .5} : null}>
+                <td className="num">{dmy(r.data) || "—"}</td><td>{r.descrizione}</td><td>{r.tipo}</td>
+                <td className="ta-r num">{eur(r.importo)}</td><td>{r.membro}</td><td>{r.conto}</td><td>{r.categoria}</td>
+              </tr>))}</tbody></table>
+        </div>
+
+        <div className="btnrow" style={{marginTop: 14}}>
+          <button className="btn" disabled={busy || valide.length === 0} onClick={importa}>
+            {busy ? "Importo…" : "Importa " + valide.length + " movimenti"}</button>
+          <button className="btn ghost" onClick={onClose}>Annulla</button>
+        </div>
+      </>}
+    </Modal>
+  );
+}
+
+/* ─────────────── SCADENZE ─────────────── */
+const RICORRENZE = [
+  ["nessuna", "Una tantum"], ["mensile", "Ogni mese"], ["bimestrale", "Ogni 2 mesi"],
+  ["trimestrale", "Ogni 3 mesi"], ["quadrimestrale", "Ogni 4 mesi"], ["semestrale", "Ogni 6 mesi"], ["annuale", "Ogni anno"]
+];
+const PASSO = {mensile: 1, bimestrale: 2, trimestrale: 3, quadrimestrale: 4, semestrale: 6, annuale: 12};
+
+function Scadenze({data, log, utente}) {
+  const {scadenze, categorie, conti, membri} = data;
+  const [edit, setEdit] = useState(null);
+  const [mostraPagate, setMostraPagate] = useState(false);
+  const [ambito, setAmbito] = useState("");
+
+  const lista = scadenze
+    .filter(s => mostraPagate ? true : !s.pagata)
+    .filter(s => ambito ? (s.ambito || "famiglia") === ambito : true)
+    .sort((a, b) => String(a.dataScadenza).localeCompare(String(b.dataScadenza)));
+
+  const oggi = todayISO();
+  const nomeDi = (arr, id) => { const x = arr.find(a => a.id === id); return x ? x.nome : "—"; };
+
+  async function salva(s) {
+    const id = s.id || uid();
+    const rec = {
+      descrizione: s.descrizione.trim(), importo: num(s.importo), dataScadenza: s.dataScadenza,
+      ricorrenza: s.ricorrenza || "nessuna", ambito: s.ambito || "famiglia",
+      categoriaId: s.categoriaId || "", contoId: s.contoId || "", membroId: s.membroId || "",
+      pagata: !!s.pagata, note: s.note || "", modificatoDa: utente.username, modificatoIl: Date.now()
+    };
+    await ref("scadenze/" + id).set(rec);
+    log(s.id ? "Scadenza modificata" : "Scadenza aggiunta", rec.descrizione);
+    setEdit(null);
+  }
+  async function segnaPagata(s) {
+    const passo = PASSO[s.ricorrenza];
+    await ref("scadenze/" + s.id).update({pagata: true, modificatoDa: utente.username, modificatoIl: Date.now()});
+    log("Scadenza pagata", s.descrizione + " · " + eur(s.importo));
+    if (passo) {
+      const giorno = Number(String(s.dataScadenza).slice(8, 10));
+      const nuovoMese = addMonths(mKey(s.dataScadenza), passo);
+      const id = uid();
+      const {id: _drop, ...base} = s;
+      await ref("scadenze/" + id).set({...base, pagata: false, dataScadenza: dateInMonth(nuovoMese, giorno)});
+    }
+  }
+  async function elimina(s) {
+    if (!confirm("Eliminare la scadenza “" + s.descrizione + "”?")) return;
+    await ref("scadenze/" + s.id).remove();
+    log("Scadenza eliminata", s.descrizione);
+  }
+
+  const totDaPagare = lista.filter(s => !s.pagata).reduce((a, s) => a + num(s.importo), 0);
+
+  return (
+    <div>
+      <h1>Scadenze</h1>
+      <p className="sub">Utenze, assicurazioni, bolli e tutto ciò che ha una data.</p>
+
+      <div className="btnrow" style={{marginBottom: 14}}>
+        <button className="btn" onClick={() => setEdit({
+          descrizione: "", importo: "", dataScadenza: todayISO(), ricorrenza: "nessuna",
+          ambito: "famiglia", categoriaId: "", contoId: "", membroId: "", pagata: false, note: ""
+        })}>Aggiungi scadenza</button>
+        <button className="btn ghost" onClick={() => setMostraPagate(!mostraPagate)}>
+          {mostraPagate ? "Nascondi le pagate" : "Mostra anche le pagate"}</button>
+        <select className="inp" style={{width: "auto"}} value={ambito} onChange={e => setAmbito(e.target.value)}>
+          <option value="">Tutti gli ambiti</option>
+          <option value="famiglia">Famiglia</option>
+          <option value="appartamento">Appartamento in affitto</option>
+        </select>
+      </div>
+
+      <div className="card">
+        <p className="small muted" style={{marginTop: 0}}>Da pagare in totale: <b className="num">{eur(totDaPagare)}</b></p>
+        {lista.length === 0 ? <Empty>Nessuna scadenza da mostrare.</Empty> :
+          <div className="tablewrap"><table>
+            <thead><tr><th>Scadenza</th><th>Descrizione</th><th>Ambito</th><th>Ricorrenza</th><th>Conto</th>
+              <th className="ta-r">Importo</th><th></th></tr></thead>
+            <tbody>{lista.map(s => {
+              const passata = !s.pagata && s.dataScadenza < oggi;
+              const vicina = !s.pagata && !passata && s.dataScadenza <= addMonths(oggi.slice(0, 7), 0) + "-31";
+              return (
+                <tr key={s.id}>
+                  <td className="num" style={{whiteSpace: "nowrap"}}>
+                    {dmy(s.dataScadenza)}{" "}
+                    {passata && <span className="pill out">scaduta</span>}
+                    {!passata && vicina && !s.pagata && <span className="pill warn">questo mese</span>}
+                    {s.pagata && <span className="pill in">pagata</span>}
+                  </td>
+                  <td>{s.descrizione}{s.note && <div className="small muted">{s.note}</div>}</td>
+                  <td>{(s.ambito || "famiglia") === "appartamento" ? "Appartamento" : "Famiglia"}</td>
+                  <td className="small">{(RICORRENZE.find(r => r[0] === (s.ricorrenza || "nessuna")) || [])[1]}</td>
+                  <td>{nomeDi(conti, s.contoId)}</td>
+                  <td className="ta-r num" style={{whiteSpace: "nowrap"}}>{eur(s.importo)}</td>
+                  <td className="ta-r" style={{whiteSpace: "nowrap"}}>
+                    {!s.pagata && <><button className="btn sm" onClick={() => segnaPagata(s)}>Pagata</button>{" "}</>}
+                    <button className="btn ghost sm" onClick={() => setEdit(s)}>Apri</button>{" "}
+                    <button className="btn ghost sm" onClick={() => elimina(s)}>Elimina</button>
+                  </td>
+                </tr>);
+            })}</tbody></table></div>}
+      </div>
+
+      {edit && <Modal title={edit.id ? "Modifica scadenza" : "Nuova scadenza"} onClose={() => setEdit(null)}>
+        <Field label="Descrizione">
+          <input className="inp" value={edit.descrizione} onChange={e => setEdit({...edit, descrizione: e.target.value})} placeholder="es. Bollo auto" /></Field>
+        <div className="grid g2">
+          <Field label="Data di scadenza">
+            <input className="inp" type="date" value={edit.dataScadenza} onChange={e => setEdit({...edit, dataScadenza: e.target.value})} /></Field>
+          <Field label="Importo">
+            <input className="inp num" inputMode="decimal" value={edit.importo} onChange={e => setEdit({...edit, importo: e.target.value})} /></Field>
+        </div>
+        <div className="grid g2">
+          <Field label="Si ripete">
+            <select className="inp" value={edit.ricorrenza} onChange={e => setEdit({...edit, ricorrenza: e.target.value})}>
+              {RICORRENZE.map(r => <option key={r[0]} value={r[0]}>{r[1]}</option>)}</select></Field>
+          <Field label="Ambito">
+            <select className="inp" value={edit.ambito} onChange={e => setEdit({...edit, ambito: e.target.value})}>
+              <option value="famiglia">Famiglia</option>
+              <option value="appartamento">Appartamento in affitto</option></select></Field>
+        </div>
+        <div className="grid g2">
+          <Field label="Conto di addebito">
+            <select className="inp" value={edit.contoId} onChange={e => setEdit({...edit, contoId: e.target.value})}>
+              <option value="">—</option>{conti.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></Field>
+          <Field label="Categoria">
+            <select className="inp" value={edit.categoriaId} onChange={e => setEdit({...edit, categoriaId: e.target.value})}>
+              <option value="">—</option>{categorie.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></Field>
+        </div>
+        <Field label="Note"><input className="inp" value={edit.note || ""} onChange={e => setEdit({...edit, note: e.target.value})} /></Field>
+        <div className="btnrow">
+          <button className="btn" disabled={!edit.descrizione.trim() || !edit.dataScadenza} onClick={() => salva(edit)}>Salva</button>
+          <button className="btn ghost" onClick={() => setEdit(null)}>Annulla</button>
+        </div>
+      </Modal>}
+    </div>
+  );
+}
+
+/* ─────────────── BOLLETTE ─────────────── */
+const MAX_ALLEGATO = 700 * 1024;
+
+function Bollette({data, log, utente}) {
+  const [ambito, setAmbito] = useState("famiglia");
+  const [edit, setEdit] = useState(null);
+  const {bollette} = data;
+
+  const lista = bollette.filter(b => (b.ambito || "famiglia") === ambito)
+    .sort((a, b) => String(b.dataScadenza || b.periodo || "").localeCompare(String(a.dataScadenza || a.periodo || "")));
+
+  const totAnno = lista.filter(b => String(b.dataScadenza || "").slice(0, 4) === String(new Date().getFullYear()))
+    .reduce((s, b) => s + num(b.importo), 0);
+
+  async function salva(b) {
+    const id = b.id || uid();
+    const rec = {
+      ambito: b.ambito, fornitore: b.fornitore.trim(), tipo: b.tipo, periodo: b.periodo || "",
+      importo: num(b.importo), dataScadenza: b.dataScadenza || "", pagata: !!b.pagata,
+      note: b.note || "", allegato: b.allegato || null, linkEsterno: b.linkEsterno || "",
+      modificatoDa: utente.username, modificatoIl: Date.now()
+    };
+    await ref("bollette/" + id).set(rec);
+    log(b.id ? "Bolletta modificata" : "Bolletta aggiunta", rec.fornitore + " · " + rec.tipo);
+    setEdit(null);
+  }
+  async function elimina(b) {
+    if (!confirm("Eliminare questa bolletta?")) return;
+    await ref("bollette/" + b.id).remove();
+    log("Bolletta eliminata", b.fornitore + " · " + b.tipo);
+  }
+  function apri(b) {
+    if (b.allegato && b.allegato.dataUrl) {
+      const w = window.open();
+      if (b.allegato.mime.startsWith("image/")) {
+        w.document.write('<img src="' + b.allegato.dataUrl + '" style="max-width:100%">');
+      } else {
+        w.location = b.allegato.dataUrl;
+      }
+    }
+  }
+
+  return (
+    <div>
+      <h1>Bollette</h1>
+      <p className="sub">Divise tra la casa di famiglia e l'appartamento in affitto, con il documento allegato.</p>
+
+      <div className="tabs">
+        <button className={"tab" + (ambito === "famiglia" ? " on" : "")} onClick={() => setAmbito("famiglia")}>Famiglia</button>
+        <button className={"tab" + (ambito === "appartamento" ? " on" : "")} onClick={() => setAmbito("appartamento")}>Appartamento in affitto</button>
+      </div>
+
+      <div className="btnrow" style={{marginBottom: 14}}>
+        <button className="btn" onClick={() => setEdit({
+          ambito, fornitore: "", tipo: "Luce", periodo: "", importo: "",
+          dataScadenza: todayISO(), pagata: false, note: "", allegato: null, linkEsterno: ""
+        })}>Aggiungi bolletta</button>
+      </div>
+
+      <div className="card">
+        <p className="small muted" style={{marginTop: 0}}>Totale {new Date().getFullYear()}: <b className="num">{eur(totAnno)}</b></p>
+        {lista.length === 0 ? <Empty>Nessuna bolletta registrata per questo ambito.</Empty> :
+          <div className="tablewrap"><table>
+            <thead><tr><th>Scadenza</th><th>Fornitore</th><th>Tipo</th><th>Periodo</th>
+              <th className="ta-r">Importo</th><th>Stato</th><th>Documento</th><th></th></tr></thead>
+            <tbody>{lista.map(b => (
+              <tr key={b.id}>
+                <td className="num" style={{whiteSpace: "nowrap"}}>{dmy(b.dataScadenza)}</td>
+                <td>{b.fornitore}</td><td>{b.tipo}</td><td className="small">{b.periodo}</td>
+                <td className="ta-r num" style={{whiteSpace: "nowrap"}}>{eur(b.importo)}</td>
+                <td>{b.pagata ? <span className="pill in">pagata</span> : <span className="pill warn">da pagare</span>}</td>
+                <td>
+                  {b.allegato ? <button className="btn ghost sm" onClick={() => apri(b)}>Apri</button>
+                    : b.linkEsterno ? <a className="small" href={b.linkEsterno} target="_blank" rel="noreferrer">Link</a>
+                      : <span className="muted small">—</span>}
+                </td>
+                <td className="ta-r" style={{whiteSpace: "nowrap"}}>
+                  <button className="btn ghost sm" onClick={() => setEdit(b)}>Apri</button>{" "}
+                  <button className="btn ghost sm" onClick={() => elimina(b)}>Elimina</button></td>
+              </tr>))}</tbody></table></div>}
+      </div>
+
+      {edit && <FormBolletta b={edit} onSave={salva} onClose={() => setEdit(null)} />}
+    </div>
+  );
+}
+
+function FormBolletta({b, onSave, onClose}) {
+  const [v, setV] = useState(b);
+  const [msg, setMsg] = useState("");
+  const set = (k, x) => setV(p => ({...p, [k]: x}));
+
+  function carica(file) {
+    setMsg("");
+    if (file.size > MAX_ALLEGATO) {
+      setMsg("Il file pesa " + Math.round(file.size / 1024) + " KB: il limite è 700 KB. Comprimilo oppure incolla un link a Google Drive qui sotto.");
+      return;
+    }
+    const r = new FileReader();
+    r.onload = e => set("allegato", {nome: file.name, mime: file.type || "application/octet-stream", dataUrl: e.target.result});
+    r.readAsDataURL(file);
+  }
+
+  return (
+    <Modal title={b.id ? "Modifica bolletta" : "Nuova bolletta"} onClose={onClose}>
+      <div className="grid g2">
+        <Field label="Ambito">
+          <select className="inp" value={v.ambito} onChange={e => set("ambito", e.target.value)}>
+            <option value="famiglia">Famiglia</option>
+            <option value="appartamento">Appartamento in affitto</option></select></Field>
+        <Field label="Tipo">
+          <select className="inp" value={v.tipo} onChange={e => set("tipo", e.target.value)}>
+            {["Luce", "Gas", "Acqua", "Rifiuti", "Telefono e internet", "Condominio", "Altro"].map(t => <option key={t}>{t}</option>)}
+          </select></Field>
+      </div>
+      <div className="grid g2">
+        <Field label="Fornitore"><input className="inp" value={v.fornitore} onChange={e => set("fornitore", e.target.value)} placeholder="es. Enel" /></Field>
+        <Field label="Periodo"><input className="inp" value={v.periodo} onChange={e => set("periodo", e.target.value)} placeholder="es. lug–ago 2026" /></Field>
+      </div>
+      <div className="grid g2">
+        <Field label="Importo"><input className="inp num" inputMode="decimal" value={v.importo} onChange={e => set("importo", e.target.value)} /></Field>
+        <Field label="Scadenza"><input className="inp" type="date" value={v.dataScadenza} onChange={e => set("dataScadenza", e.target.value)} /></Field>
+      </div>
+      <Field label="Stato">
+        <select className="inp" value={v.pagata ? "1" : "0"} onChange={e => set("pagata", e.target.value === "1")}>
+          <option value="0">Da pagare</option><option value="1">Pagata</option></select></Field>
+
+      <Field label="Documento (max 700 KB)">
+        <div className="btnrow">
+          <label className="btn ghost sm" style={{cursor: "pointer"}}>
+            {v.allegato ? "Sostituisci" : "Carica un file"}
+            <input type="file" accept=".pdf,image/*" style={{display: "none"}}
+              onChange={e => e.target.files[0] && carica(e.target.files[0])} />
+          </label>
+          {v.allegato && <>
+            <span className="small muted" style={{alignSelf: "center"}}>{v.allegato.nome}</span>
+            <button className="btn ghost sm" onClick={() => set("allegato", null)}>Rimuovi</button></>}
+        </div>
+      </Field>
+      {msg && <p className="small warn-c">{msg}</p>}
+      <Field label="Oppure un link (Drive, area clienti…)">
+        <input className="inp" value={v.linkEsterno || ""} onChange={e => set("linkEsterno", e.target.value)} placeholder="https://" /></Field>
+      <Field label="Note"><input className="inp" value={v.note || ""} onChange={e => set("note", e.target.value)} /></Field>
+
+      <div className="btnrow">
+        <button className="btn" disabled={!v.fornitore.trim()} onClick={() => onSave(v)}>Salva</button>
+        <button className="btn ghost" onClick={onClose}>Annulla</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ─────────────── MOTORE DI PREVISIONE ─────────────── */
+function calcolaSaldi(conti, movimenti) {
+  const s = {};
+  conti.forEach(c => { s[c.id] = num(c.saldoIniziale); });
+  const oggi = todayISO();
+  movimenti.forEach(m => {
+    if (!m.contoId || s[m.contoId] === undefined) return;
+    if (String(m.data) > oggi) return;
+    const c = conti.find(x => x.id === m.contoId);
+    if (c && c.dataSaldo && String(m.data) < c.dataSaldo) return;
+    s[m.contoId] += (m.tipo === "Entrata" ? 1 : -1) * num(m.importo);
+  });
+  return s;
+}
+
+function previsione(data, saldi, par) {
+  const {movimenti, conti, categorie, scadenze} = data;
+  const oggi = todayISO();
+  const meseCorr = mKey(oggi);
+  const nMesi = par.mesi || 6;
+  const storico = par.storico || 6;
+
+  const contiCorrenti = conti.filter(c => c.tipo !== "carta");
+  const carte = conti.filter(c => c.tipo === "carta");
+  const catEsclusa = (id) => { const c = categorie.find(x => x.id === id); return c && c.escludiDaPrevisione; };
+
+  // media mensile su storico chiuso (mesi precedenti a quello corrente)
+  const mesiStorico = [];
+  for (let i = 1; i <= storico; i++) mesiStorico.push(addMonths(meseCorr, -i));
+
+  function mediaMensile(filtro) {
+    let tot = 0;
+    mesiStorico.forEach(k => {
+      tot += movimenti.filter(m => mKey(m.data) === k && filtro(m)).reduce((s, m) => s + num(m.importo), 0);
+    });
+    return mesiStorico.length ? tot / mesiStorico.length : 0;
+  }
+
+  const suConto = (m) => contiCorrenti.some(c => c.id === m.contoId);
+  const suCarta = (m) => carte.some(c => c.id === m.contoId);
+
+  const entrateMedie = par.entrateManuale !== "" && par.entrateManuale != null
+    ? num(par.entrateManuale)
+    : mediaMensile(m => m.tipo === "Entrata" && suConto(m) && !catEsclusa(m.categoriaId));
+
+  const usciteMedie = par.usciteManuale !== "" && par.usciteManuale != null
+    ? num(par.usciteManuale)
+    : mediaMensile(m => m.tipo === "Uscita" && suConto(m) && !catEsclusa(m.categoriaId));
+
+  const carteMedie = {};
+  carte.forEach(c => {
+    carteMedie[c.id] = mediaMensile(m => m.tipo === "Uscita" && m.contoId === c.id);
+  });
+
+  function speseCartaMese(cartaId, key) {
+    return movimenti.filter(m => m.contoId === cartaId && mKey(m.data) === key && m.tipo === "Uscita")
+      .reduce((s, m) => s + num(m.importo), 0);
+  }
+
+  // scadenze future proiettate (comprese le ricorrenti)
+  function scadenzeDelMese(key) {
+    let tot = 0;
+    const voci = [];
+    scadenze.forEach(s => {
+      if (s.pagata) return;
+      const passo = PASSO[s.ricorrenza];
+      const giorno = Number(String(s.dataScadenza).slice(8, 10)) || 1;
+      let k = mKey(s.dataScadenza);
+      if (!k) return;
+      if (!passo) {
+        if (k === key) { tot += num(s.importo); voci.push(s.descrizione); }
+        return;
+      }
+      // proietta in avanti finché non supera il mese
+      let guard = 0;
+      while (k < key && guard < 200) { k = addMonths(k, passo); guard++; }
+      if (k === key) { tot += num(s.importo); voci.push(s.descrizione); }
+    });
+    return {tot, voci};
+  }
+
+  const righe = [];
+  let saldo = contiCorrenti.reduce((s, c) => s + (saldi[c.id] || 0), 0);
+
+  for (let i = 0; i < nMesi; i++) {
+    const key = addMonths(meseCorr, i);
+    const iniziale = saldo;
+
+    // entrate/uscite ordinarie: nel mese corrente conto solo la quota residua
+    const gg = daysInMonth(key);
+    const quota = i === 0 ? Math.max(0, (gg - Number(oggi.slice(8, 10))) / gg) : 1;
+
+    const entrate = entrateMedie * quota;
+    const ordinarie = usciteMedie * quota;
+    const {tot: scad, voci} = scadenzeDelMese(key);
+
+    // addebiti carte: le spese del mese precedente addebitate il giorno indicato
+    let addebiti = 0;
+    const dettaglioCarte = [];
+    carte.forEach(c => {
+      const giorno = Number(c.giornoAddebito) || 15;
+      const dataAddebito = dateInMonth(key, giorno);
+      if (dataAddebito < oggi) return; // già transitato in banca
+      const mesePrec = addMonths(key, -1);
+      const reale = speseCartaMese(c.id, mesePrec);
+      const stima = mesePrec >= meseCorr ? carteMedie[c.id] : reale;
+      const val = mesePrec < meseCorr ? reale : Math.max(reale, stima);
+      if (val > 0) { addebiti += val; dettaglioCarte.push(c.nome + " " + eur(val)); }
+    });
+
+    const imprevisti = (num(par.imprevisti) / 100) * ordinarie;
+    const fine = iniziale + entrate - ordinarie - scad - addebiti - imprevisti;
+    righe.push({
+      mese: key, saldoInizio: iniziale, entrate, ordinarie, scadenze: scad,
+      vociScadenze: voci, addebiti, dettaglioCarte, imprevisti, saldoFine: fine
+    });
+    saldo = fine;
+  }
+
+  return {righe, soglia: num(par.soglia), entrateMedie, usciteMedie, carteMedie, mesiStorico};
+}
+
+/* ─────────────── PREVISIONI ─────────────── */
+function Previsioni({data, saldi, par, setPar, prev}) {
+  const [dett, setDett] = useState(null);
+  const set = (k, v) => setPar({...par, [k]: v});
+  const contiCorrenti = data.conti.filter(c => c.tipo !== "carta");
+
+  return (
+    <div>
+      <h1>Programmazione finanziaria</h1>
+      <p className="sub">Se le entrate e i consumi restano quelli degli ultimi mesi, ecco come si muove la giacenza.</p>
+
+      <div className="card">
+        <div className="cardhead"><h2>Ipotesi di calcolo</h2></div>
+        <div className="grid g3">
+          <Field label="Mesi da proiettare">
+            <select className="inp" value={par.mesi} onChange={e => set("mesi", Number(e.target.value))}>
+              {[3, 6, 9, 12, 18, 24].map(n => <option key={n} value={n}>{n} mesi</option>)}</select></Field>
+          <Field label="Storico per le medie">
+            <select className="inp" value={par.storico} onChange={e => set("storico", Number(e.target.value))}>
+              {[3, 6, 12].map(n => <option key={n} value={n}>ultimi {n} mesi</option>)}</select></Field>
+          <Field label="Soglia di sicurezza sul conto">
+            <input className="inp num" value={par.soglia} onChange={e => set("soglia", e.target.value)} /></Field>
+          <Field label="Margine per imprevisti (% sulle uscite)">
+            <input className="inp num" value={par.imprevisti} onChange={e => set("imprevisti", e.target.value)} /></Field>
+          <Field label={"Entrate mensili (media: " + eur(prev.entrateMedie) + ")"}>
+            <input className="inp num" placeholder="lascia vuoto per usare la media"
+              value={par.entrateManuale} onChange={e => set("entrateManuale", e.target.value)} /></Field>
+          <Field label={"Consumi mensili (media: " + eur(prev.usciteMedie) + ")"}>
+            <input className="inp num" placeholder="lascia vuoto per usare la media"
+              value={par.usciteManuale} onChange={e => set("usciteManuale", e.target.value)} /></Field>
+        </div>
+        <p className="small muted" style={{marginBottom: 0}}>
+          Le medie sono calcolate sui movimenti dei conti correnti, escluse le categorie marcate come “fuori previsione”.
+          Le spese sulle carte non entrano nei consumi: rientrano come addebito il mese successivo.
+        </p>
+      </div>
+
+      <div className="card">
+        <div className="cardhead"><h2>Proiezione</h2>
+          <span className="small muted">Partenza: {eur(contiCorrenti.reduce((s, c) => s + (saldi[c.id] || 0), 0))} sui conti</span></div>
+        {contiCorrenti.length === 0 ? <Empty>Serve almeno un conto corrente per fare la previsione.</Empty> :
+          <div className="tablewrap"><table>
+            <thead><tr>
+              <th>Mese</th><th className="ta-r">Saldo iniziale</th><th className="ta-r">Entrate</th>
+              <th className="ta-r">Consumi</th><th className="ta-r">Scadenze</th><th className="ta-r">Carte</th>
+              <th className="ta-r">Imprevisti</th><th className="ta-r">Saldo finale</th><th></th>
+            </tr></thead>
+            <tbody>{prev.righe.map(r => {
+              const rosso = r.saldoFine < prev.soglia;
+              return (
+                <tr key={r.mese} style={rosso ? {background: "var(--amber-bg)"} : null}>
+                  <td style={{whiteSpace: "nowrap"}}>{mLabel(r.mese)}</td>
+                  <td className="ta-r num">{eur(r.saldoInizio)}</td>
+                  <td className="ta-r num in-c">{eur(r.entrate)}</td>
+                  <td className="ta-r num">{eur(r.ordinarie)}</td>
+                  <td className="ta-r num">{eur(r.scadenze)}</td>
+                  <td className="ta-r num">{eur(r.addebiti)}</td>
+                  <td className="ta-r num">{eur(r.imprevisti)}</td>
+                  <td className={"ta-r num " + (rosso ? "warn-c" : "")} style={{fontWeight: 600}}>{eur(r.saldoFine)}</td>
+                  <td className="ta-r"><button className="btn ghost sm" onClick={() => setDett(r)}>Dettaglio</button></td>
+                </tr>);
+            })}</tbody></table></div>}
+        <p className="small muted" style={{marginBottom: 0}}>
+          I mesi evidenziati sono quelli in cui il saldo scende sotto la soglia di {eur(prev.soglia)}.
+        </p>
+      </div>
+
+      {dett && <Modal title={"Dettaglio di " + mLabel(dett.mese)} onClose={() => setDett(null)}>
+        <div className="rowline"><span>Saldo iniziale</span><b className="num">{eur(dett.saldoInizio)}</b></div>
+        <div className="rowline"><span>Entrate previste</span><b className="num in-c">{eur(dett.entrate)}</b></div>
+        <div className="rowline"><span>Consumi ordinari</span><b className="num">−{eur(dett.ordinarie)}</b></div>
+        <div className="rowline">
+          <span>Scadenze{dett.vociScadenze.length > 0 && <div className="small muted">{dett.vociScadenze.join(", ")}</div>}</span>
+          <b className="num">−{eur(dett.scadenze)}</b></div>
+        <div className="rowline">
+          <span>Addebiti carte{dett.dettaglioCarte.length > 0 && <div className="small muted">{dett.dettaglioCarte.join(", ")}</div>}</span>
+          <b className="num">−{eur(dett.addebiti)}</b></div>
+        <div className="rowline"><span>Margine imprevisti</span><b className="num">−{eur(dett.imprevisti)}</b></div>
+        <div className="rowline" style={{fontSize: 17}}><span><b>Saldo finale</b></span><b className="num">{eur(dett.saldoFine)}</b></div>
+      </Modal>}
+    </div>
+  );
+}
+
+/* ─────────────── ANAGRAFICHE ─────────────── */
+function Anagrafiche({data, saldi, log, utente}) {
+  const [tab, setTab] = useState("conti");
+  return (
+    <div>
+      <h1>Anagrafiche</h1>
+      <p className="sub">Conti, carte, membri della famiglia e categorie di spesa.</p>
+      <div className="tabs">
+        <button className={"tab" + (tab === "conti" ? " on" : "")} onClick={() => setTab("conti")}>Conti e carte</button>
+        <button className={"tab" + (tab === "membri" ? " on" : "")} onClick={() => setTab("membri")}>Membri</button>
+        <button className={"tab" + (tab === "categorie" ? " on" : "")} onClick={() => setTab("categorie")}>Categorie</button>
+      </div>
+      {tab === "conti" && <Conti data={data} saldi={saldi} log={log} />}
+      {tab === "membri" && <Membri data={data} log={log} />}
+      {tab === "categorie" && <Categorie data={data} log={log} />}
+    </div>
+  );
+}
+
+function Conti({data, saldi, log}) {
+  const {conti} = data;
+  const [edit, setEdit] = useState(null);
+  async function salva(c) {
+    const id = c.id || uid();
+    await ref("conti/" + id).set({
+      nome: c.nome.trim(), tipo: c.tipo, intestatario: c.intestatario || "",
+      saldoIniziale: num(c.saldoIniziale), dataSaldo: c.dataSaldo || "",
+      contoAddebito: c.tipo === "carta" ? (c.contoAddebito || "") : "",
+      giornoAddebito: c.tipo === "carta" ? (Number(c.giornoAddebito) || 15) : null
+    });
+    log(c.id ? "Conto modificato" : "Conto aggiunto", c.nome);
+    setEdit(null);
+  }
+  async function elimina(c) {
+    if (!confirm("Eliminare " + c.nome + "? I movimenti collegati restano ma senza conto.")) return;
+    await ref("conti/" + c.id).remove(); log("Conto eliminato", c.nome);
+  }
+  return (
+    <div className="card">
+      <div className="cardhead"><h2>Conti e carte</h2>
+        <button className="btn sm" onClick={() => setEdit({
+          nome: "", tipo: "conto", intestatario: "", saldoIniziale: "", dataSaldo: "",
+          contoAddebito: "", giornoAddebito: 15
+        })}>Aggiungi</button></div>
+      {conti.length === 0 ? <Empty>Inserisci i conti correnti e le carte di credito della famiglia.</Empty> :
+        <div className="tablewrap"><table>
+          <thead><tr><th>Nome</th><th>Tipo</th><th>Intestatario</th><th>Addebito</th>
+            <th className="ta-r">Saldo iniziale</th><th className="ta-r">Saldo attuale</th><th></th></tr></thead>
+          <tbody>{conti.map(c => {
+            const dest = data.conti.find(x => x.id === c.contoAddebito);
+            const m = data.membri.find(x => x.id === c.intestatario);
+            return (
+              <tr key={c.id}>
+                <td>{c.nome}</td>
+                <td><span className="pill">{c.tipo === "carta" ? "Carta" : "Conto"}</span></td>
+                <td>{m ? m.nome : "—"}</td>
+                <td className="small">{c.tipo === "carta" ? ((dest ? dest.nome : "—") + " il " + (c.giornoAddebito || 15)) : "—"}</td>
+                <td className="ta-r num">{eur(c.saldoIniziale)}{c.dataSaldo && <div className="small muted">al {dmy(c.dataSaldo)}</div>}</td>
+                <td className="ta-r num"><b>{eur(saldi[c.id] || 0)}</b></td>
+                <td className="ta-r" style={{whiteSpace: "nowrap"}}>
+                  <button className="btn ghost sm" onClick={() => setEdit(c)}>Apri</button>{" "}
+                  <button className="btn ghost sm" onClick={() => elimina(c)}>Elimina</button></td>
+              </tr>);
+          })}</tbody></table></div>}
+
+      {edit && <Modal title={edit.id ? "Modifica conto" : "Nuovo conto"} onClose={() => setEdit(null)}>
+        <div className="grid g2">
+          <Field label="Nome"><input className="inp" value={edit.nome} onChange={e => setEdit({...edit, nome: e.target.value})} placeholder="es. Conto BPER papà" /></Field>
+          <Field label="Tipo">
+            <select className="inp" value={edit.tipo} onChange={e => setEdit({...edit, tipo: e.target.value})}>
+              <option value="conto">Conto corrente</option><option value="carta">Carta di credito</option></select></Field>
+        </div>
+        <Field label="Intestatario">
+          <select className="inp" value={edit.intestatario} onChange={e => setEdit({...edit, intestatario: e.target.value})}>
+            <option value="">—</option>{data.membri.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select></Field>
+        <div className="grid g2">
+          <Field label="Saldo iniziale"><input className="inp num" inputMode="decimal" value={edit.saldoIniziale} onChange={e => setEdit({...edit, saldoIniziale: e.target.value})} /></Field>
+          <Field label="Alla data del"><input className="inp" type="date" value={edit.dataSaldo} onChange={e => setEdit({...edit, dataSaldo: e.target.value})} /></Field>
+        </div>
+        {edit.tipo === "carta" && <div className="grid g2">
+          <Field label="Conto su cui viene addebitata">
+            <select className="inp" value={edit.contoAddebito} onChange={e => setEdit({...edit, contoAddebito: e.target.value})}>
+              <option value="">—</option>
+              {data.conti.filter(c => c.tipo !== "carta").map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></Field>
+          <Field label="Giorno di addebito del mese dopo">
+            <input className="inp num" type="number" min="1" max="28" value={edit.giornoAddebito}
+              onChange={e => setEdit({...edit, giornoAddebito: e.target.value})} /></Field>
+        </div>}
+        <p className="small muted">Il saldo iniziale è quello del conto alla data indicata: i movimenti precedenti non vengono considerati.</p>
+        <div className="btnrow">
+          <button className="btn" disabled={!edit.nome.trim()} onClick={() => salva(edit)}>Salva</button>
+          <button className="btn ghost" onClick={() => setEdit(null)}>Annulla</button></div>
+      </Modal>}
+    </div>
+  );
+}
+
+function Membri({data, log}) {
+  const [nome, setNome] = useState("");
+  async function aggiungi() {
+    if (!nome.trim()) return;
+    await ref("membri/" + uid()).set({nome: nome.trim()});
+    log("Membro aggiunto", nome.trim()); setNome("");
+  }
+  async function elimina(m) {
+    if (!confirm("Eliminare " + m.nome + "?")) return;
+    await ref("membri/" + m.id).remove(); log("Membro eliminato", m.nome);
+  }
+  return (
+    <div className="card">
+      <div className="cardhead"><h2>Membri della famiglia</h2></div>
+      <div className="btnrow" style={{marginBottom: 12}}>
+        <input className="inp" style={{maxWidth: 240}} value={nome} placeholder="Nome"
+          onChange={e => setNome(e.target.value)} onKeyDown={e => e.key === "Enter" && aggiungi()} />
+        <button className="btn" onClick={aggiungi}>Aggiungi</button>
+      </div>
+      {data.membri.length === 0 ? <Empty>Aggiungi chi fa parte della famiglia.</Empty> :
+        <table><tbody>{data.membri.map(m => (
+          <tr key={m.id}><td>{m.nome}</td>
+            <td className="ta-r"><button className="btn ghost sm" onClick={() => elimina(m)}>Elimina</button></td></tr>
+        ))}</tbody></table>}
+    </div>
+  );
+}
+
+function Categorie({data, log}) {
+  const [edit, setEdit] = useState(null);
+  const [nome, setNome] = useState("");
+  async function aggiungi() {
+    if (!nome.trim()) return;
+    await ref("categorie/" + uid()).set({nome: nome.trim(), tipo: "uscita", escludiDaPrevisione: false});
+    log("Categoria aggiunta", nome.trim()); setNome("");
+  }
+  async function salva(c) {
+    await ref("categorie/" + c.id).set({nome: c.nome.trim(), tipo: c.tipo, escludiDaPrevisione: !!c.escludiDaPrevisione});
+    log("Categoria modificata", c.nome); setEdit(null);
+  }
+  async function elimina(c) {
+    if (!confirm("Eliminare la categoria " + c.nome + "?")) return;
+    await ref("categorie/" + c.id).remove(); log("Categoria eliminata", c.nome);
+  }
+  return (
+    <div className="card">
+      <div className="cardhead"><h2>Categorie</h2></div>
+      <div className="btnrow" style={{marginBottom: 12}}>
+        <input className="inp" style={{maxWidth: 240}} value={nome} placeholder="Nuova categoria"
+          onChange={e => setNome(e.target.value)} onKeyDown={e => e.key === "Enter" && aggiungi()} />
+        <button className="btn" onClick={aggiungi}>Aggiungi</button>
+      </div>
+      <div className="tablewrap"><table>
+        <thead><tr><th>Nome</th><th>Vale per</th><th>In previsione</th><th></th></tr></thead>
+        <tbody>{data.categorie.map(c => (
+          <tr key={c.id}>
+            <td>{c.nome}</td>
+            <td className="small">{c.tipo === "entrata" ? "Entrate" : c.tipo === "uscita" ? "Uscite" : "Entrate e uscite"}</td>
+            <td>{c.escludiDaPrevisione ? <span className="pill">esclusa</span> : <span className="pill in">inclusa</span>}</td>
+            <td className="ta-r" style={{whiteSpace: "nowrap"}}>
+              <button className="btn ghost sm" onClick={() => setEdit(c)}>Apri</button>{" "}
+              <button className="btn ghost sm" onClick={() => elimina(c)}>Elimina</button></td>
+          </tr>))}</tbody></table></div>
+
+      {edit && <Modal title="Modifica categoria" onClose={() => setEdit(null)}>
+        <Field label="Nome"><input className="inp" value={edit.nome} onChange={e => setEdit({...edit, nome: e.target.value})} /></Field>
+        <Field label="Vale per">
+          <select className="inp" value={edit.tipo || "uscita"} onChange={e => setEdit({...edit, tipo: e.target.value})}>
+            <option value="uscita">Uscite</option><option value="entrata">Entrate</option><option value="entrambe">Entrate e uscite</option></select></Field>
+        <label className="small" style={{display: "block", marginBottom: 12}}>
+          <input type="checkbox" checked={!!edit.escludiDaPrevisione}
+            onChange={e => setEdit({...edit, escludiDaPrevisione: e.target.checked})} />{" "}
+          Tieni fuori dalle medie della previsione (giroconti, addebiti carta, partite straordinarie)
+        </label>
+        <div className="btnrow">
+          <button className="btn" onClick={() => salva(edit)}>Salva</button>
+          <button className="btn ghost" onClick={() => setEdit(null)}>Annulla</button></div>
+      </Modal>}
+    </div>
+  );
+}
+
+/* ─────────────── UTENTI (admin) ─────────────── */
+function Utenti({utenti, log, utente}) {
+  const [nuovo, setNuovo] = useState(null);
+  const [pwd, setPwd] = useState(null);
+  const lista = obj2arr(utenti).sort((a, b) => String(a.username).localeCompare(String(b.username)));
+
+  async function crea(v) {
+    if (lista.some(u => u.username.toLowerCase() === v.username.trim().toLowerCase())) {
+      alert("Esiste già un utente con questo nome."); return;
+    }
+    const h = await sha256(v.password);
+    await ref("utenti/" + uid()).set({
+      username: v.username.trim(), nome: v.nome.trim(), ruolo: v.ruolo,
+      passwordHash: h, creatoIl: Date.now(), creatoDa: utente.username
+    });
+    log("Utente creato", v.username.trim() + " (" + v.ruolo + ")");
+    setNuovo(null);
+  }
+  async function cambiaPwd(u, p) {
+    await ref("utenti/" + u.id + "/passwordHash").set(await sha256(p));
+    log("Password cambiata", u.username);
+    setPwd(null);
+  }
+  async function elimina(u) {
+    if (u.id === utente.id) { alert("Non puoi eliminare l'utente con cui sei collegato."); return; }
+    if (!confirm("Eliminare l'utente " + u.username + "?")) return;
+    await ref("utenti/" + u.id).remove(); log("Utente eliminato", u.username);
+  }
+
+  return (
+    <div>
+      <h1>Utenti</h1>
+      <p className="sub">Chi può entrare nell'app e con quale ruolo.</p>
+      <div className="btnrow" style={{marginBottom: 14}}>
+        <button className="btn" onClick={() => setNuovo({username: "", nome: "", password: "", ruolo: "utente"})}>Crea utente</button>
+      </div>
+      <div className="card">
+        <div className="tablewrap"><table>
+          <thead><tr><th>Nome utente</th><th>Persona</th><th>Ruolo</th><th>Creato</th><th></th></tr></thead>
+          <tbody>{lista.map(u => (
+            <tr key={u.id}>
+              <td>{u.username}</td><td>{u.nome || "—"}</td>
+              <td>{u.ruolo === "admin" ? <span className="pill warn">amministratore</span> : <span className="pill">familiare</span>}</td>
+              <td className="small muted">{u.creatoIl ? new Date(u.creatoIl).toLocaleDateString("it-IT") : "—"}</td>
+              <td className="ta-r" style={{whiteSpace: "nowrap"}}>
+                <button className="btn ghost sm" onClick={() => setPwd({u, p: ""})}>Password</button>{" "}
+                <button className="btn ghost sm" onClick={() => elimina(u)}>Elimina</button></td>
+            </tr>))}</tbody></table></div>
+      </div>
+
+      {nuovo && <Modal title="Nuovo utente" onClose={() => setNuovo(null)}>
+        <div className="grid g2">
+          <Field label="Nome utente"><input className="inp" autoCapitalize="none" value={nuovo.username}
+            onChange={e => setNuovo({...nuovo, username: e.target.value})} /></Field>
+          <Field label="Persona"><input className="inp" value={nuovo.nome}
+            onChange={e => setNuovo({...nuovo, nome: e.target.value})} placeholder="es. Mamma" /></Field>
+        </div>
+        <div className="grid g2">
+          <Field label="Password"><input className="inp" value={nuovo.password}
+            onChange={e => setNuovo({...nuovo, password: e.target.value})} /></Field>
+          <Field label="Ruolo">
+            <select className="inp" value={nuovo.ruolo} onChange={e => setNuovo({...nuovo, ruolo: e.target.value})}>
+              <option value="utente">Familiare</option><option value="admin">Amministratore</option></select></Field>
+        </div>
+        <p className="small muted">Solo gli amministratori vedono chi ha inserito ogni movimento e il registro attività.</p>
+        <div className="btnrow">
+          <button className="btn" disabled={!nuovo.username.trim() || nuovo.password.length < 3} onClick={() => crea(nuovo)}>Crea utente</button>
+          <button className="btn ghost" onClick={() => setNuovo(null)}>Annulla</button></div>
+      </Modal>}
+
+      {pwd && <Modal title={"Nuova password per " + pwd.u.username} onClose={() => setPwd(null)}>
+        <Field label="Password"><input className="inp" value={pwd.p} onChange={e => setPwd({...pwd, p: e.target.value})} /></Field>
+        <div className="btnrow">
+          <button className="btn" disabled={pwd.p.length < 3} onClick={() => cambiaPwd(pwd.u, pwd.p)}>Cambia password</button>
+          <button className="btn ghost" onClick={() => setPwd(null)}>Annulla</button></div>
+      </Modal>}
+    </div>
+  );
+}
+
+/* ─────────────── REGISTRO (admin) ─────────────── */
+function Registro({registro}) {
+  const [q, setQ] = useState("");
+  const lista = obj2arr(registro).sort((a, b) => b.ts - a.ts)
+    .filter(r => q ? (r.utente + " " + r.azione + " " + (r.dettaglio || "")).toLowerCase().includes(q.toLowerCase()) : true);
+  return (
+    <div>
+      <h1>Registro attività</h1>
+      <p className="sub">Chi ha fatto cosa, e quando. Visibile solo agli amministratori.</p>
+      <div className="card">
+        <div className="filters">
+          <div className="field" style={{flex: 1}}><label className="f">Cerca</label>
+            <input className="inp" value={q} onChange={e => setQ(e.target.value)} placeholder="utente, azione, dettaglio" /></div>
+        </div>
+        {lista.length === 0 ? <Empty>Nessuna attività registrata.</Empty> :
+          <div className="tablewrap"><table>
+            <thead><tr><th>Quando</th><th>Utente</th><th>Azione</th><th>Dettaglio</th></tr></thead>
+            <tbody>{lista.slice(0, 400).map(r => (
+              <tr key={r.id}>
+                <td className="num small" style={{whiteSpace: "nowrap"}}>
+                  {new Date(r.ts).toLocaleString("it-IT", {day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit"})}</td>
+                <td>{r.utente}</td><td>{r.azione}</td><td className="small muted">{r.dettaglio}</td>
+              </tr>))}</tbody></table></div>}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── APP ─────────────── */
+const NAV = [
+  ["dashboard", "Situazione", "▣"],
+  ["movimenti", "Movimenti", "⇅"],
+  ["scadenze", "Scadenze", "◷"],
+  ["bollette", "Bollette", "❑"],
+  ["previsioni", "Previsione", "◇"],
+  ["conti", "Anagrafiche", "☰"]
+];
+const NAV_ADMIN = [["utenti", "Utenti", "◍"], ["registro", "Registro attività", "≡"]];
+
+const PAR_DEFAULT = {mesi: 6, storico: 6, soglia: 2000, imprevisti: 10, entrateManuale: "", usciteManuale: ""};
+
+function App() {
+  const [pronto, setPronto] = useState(false);
+  const [utente, setUtente] = useState(null);
+  const [pag, setPag] = useState("dashboard");
+  const [menu, setMenu] = useState(false);
+  const [toast, setToast] = useState("");
+  const [par, setParState] = useState(PAR_DEFAULT);
+
+  const utenti = useNode("utenti");
+  const movimentiN = useNode("movimenti");
+  const membriN = useNode("membri");
+  const contiN = useNode("conti");
+  const categorieN = useNode("categorie");
+  const scadenzeN = useNode("scadenze");
+  const bolletteN = useNode("bollette");
+  const registro = useNode("registro");
+  const parN = useNode("parametri");
+
+  useEffect(() => {
+    firebase.auth().signInAnonymously()
+      .then(() => setPronto(true))
+      .catch(e => { alert("Connessione a Firebase non riuscita: " + e.message); setPronto(true); });
+  }, []);
+
+  // primo avvio: crea admin e categorie di base
+  useEffect(() => {
+    if (!pronto || utenti === null) return;
+    if (utenti && Object.keys(utenti).length > 0) return;
+    (async () => {
+      const h = await sha256("dado");
+      await ref("utenti/" + uid()).set({username: "admin", nome: "Davide", ruolo: "admin", passwordHash: h, creatoIl: Date.now()});
+      const base = [
+        ["Alimentari", "uscita", false], ["Salute e medicinali", "uscita", false], ["Utenze", "uscita", false],
+        ["Casa e manutenzioni", "uscita", false], ["Trasporti e carburante", "uscita", false],
+        ["Assicurazioni", "uscita", false], ["Tasse e bolli", "uscita", false], ["Svago", "uscita", false],
+        ["Vacanze", "uscita", false], ["Spese impreviste", "uscita", false], ["Appartamento in affitto", "entrambe", false],
+        ["Stipendio", "entrata", false], ["Altre entrate", "entrata", false],
+        ["Addebito carta", "uscita", true], ["Giroconto", "entrambe", true]
+      ];
+      const b = {};
+      base.forEach(([nome, tipo, ex]) => { b[uid()] = {nome, tipo, escludiDaPrevisione: ex}; });
+      await ref("categorie").update(b);
+    })();
+  }, [pronto, utenti]);
+
+  useEffect(() => { if (parN) setParState({...PAR_DEFAULT, ...parN}); }, [parN]);
+
+  const setPar = useCallback((p) => { setParState(p); ref("parametri").set(p); }, []);
+
+  const log = useCallback((azione, dettaglio) => {
+    if (!utente) return;
+    ref("registro/" + uid()).set({utente: utente.username, azione, dettaglio: dettaglio || "", ts: Date.now()});
+    setToast(azione);
+    setTimeout(() => setToast(""), 1800);
+  }, [utente]);
+
+  const data = useMemo(() => ({
+    movimenti: obj2arr(movimentiN),
+    membri: obj2arr(membriN).sort(byName),
+    conti: obj2arr(contiN).sort(byName),
+    categorie: obj2arr(categorieN).sort(byName),
+    scadenze: obj2arr(scadenzeN),
+    bollette: obj2arr(bolletteN)
+  }), [movimentiN, membriN, contiN, categorieN, scadenzeN, bolletteN]);
+
+  const saldi = useMemo(() => calcolaSaldi(data.conti, data.movimenti), [data]);
+  const prev = useMemo(() => previsione(data, saldi, par), [data, saldi, par]);
+
+  if (!pronto || utenti === null) {
+    return <div className="login-wrap"><div className="login"><h1>Finanze Famiglia</h1><p className="sub">Collegamento in corso…</p></div></div>;
+  }
+  if (!utente) {
+    return <Login utenti={utenti} seeding={!utenti || Object.keys(utenti).length === 0}
+      onLogin={u => { setUtente(u); ref("registro/" + uid()).set({utente: u.username, azione: "Accesso", dettaglio: "", ts: Date.now()}); }} />;
+  }
+
+  const voci = utente.ruolo === "admin" ? NAV.concat(NAV_ADMIN) : NAV;
+  const vai = (p) => { setPag(p); setMenu(false); };
+
+  const nav = (
+    <nav className={"side" + (menu ? " open" : "")}>
+      <div className="brand"><b>Finanze Famiglia</b><span>{utente.nome || utente.username}</span></div>
+      {NAV.map(([k, t, i]) =>
+        <button key={k} className={"navlink" + (pag === k ? " on" : "")} onClick={() => vai(k)}>
+          <span className="ic">{i}</span>{t}</button>)}
+      {utente.ruolo === "admin" && <>
+        <div className="navsep">Amministrazione</div>
+        {NAV_ADMIN.map(([k, t, i]) =>
+          <button key={k} className={"navlink" + (pag === k ? " on" : "")} onClick={() => vai(k)}>
+            <span className="ic">{i}</span>{t}</button>)}
+      </>}
+      <div className="side-foot">
+        <button className="navlink" onClick={() => { setUtente(null); setMenu(false); }}>
+          <span className="ic">⤶</span>Esci</button>
+      </div>
+    </nav>
+  );
+
+  return (
+    <div className="shell">
+      <div className="topbar">
+        <b>Finanze Famiglia</b>
+        <button className="burger" onClick={() => setMenu(!menu)}>{menu ? "✕" : "☰"}</button>
+      </div>
+      {nav}
+      <main className="main">
+        {pag === "dashboard" && <Dashboard data={data} saldi={saldi} prev={prev} go={vai} />}
+        {pag === "movimenti" && <Movimenti data={data} log={log} utente={utente} />}
+        {pag === "scadenze" && <Scadenze data={data} log={log} utente={utente} />}
+        {pag === "bollette" && <Bollette data={data} log={log} utente={utente} />}
+        {pag === "previsioni" && <Previsioni data={data} saldi={saldi} par={par} setPar={setPar} prev={prev} />}
+        {pag === "conti" && <Anagrafiche data={data} saldi={saldi} log={log} utente={utente} />}
+        {pag === "utenti" && utente.ruolo === "admin" && <Utenti utenti={utenti} log={log} utente={utente} />}
+        {pag === "registro" && utente.ruolo === "admin" && <Registro registro={registro} />}
+      </main>
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
