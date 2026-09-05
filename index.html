@@ -254,10 +254,12 @@ function excelDate(v) {
 
 /* ─────────────── hooks ─────────────── */
 function useNode(path) {
-  const [val, setVal] = useState(null);
+  const [val, setVal] = useState(undefined); // undefined = non ancora caricato, null = vuoto
   useEffect(() => {
     const r = ref(path);
-    const cb = r.on("value", s => setVal(s.val()));
+    const cb = r.on("value",
+      s => setVal(s.val()),
+      err => { console.error("Lettura " + path + " non riuscita:", err.message); setVal(null); });
     return () => r.off("value", cb);
   }, [path]);
   return val;
@@ -1557,13 +1559,40 @@ const NAV_ADMIN = [["utenti", "Utenti", "◍"], ["registro", "Registro attività
 
 const PAR_DEFAULT = {mesi: 6, storico: 6, soglia: 2000, imprevisti: 10, entrateManuale: "", usciteManuale: ""};
 
+function Avvio({testo, errore}) {
+  return (
+    <div className="login-wrap"><div className="login">
+      <h1>Finanze Famiglia</h1>
+      <p className="sub" style={{marginBottom: 0}}>{testo}</p>
+      {errore && <p className="small out-c" style={{marginTop: 12}}>{errore}</p>}
+    </div></div>
+  );
+}
+
 function App() {
   const [pronto, setPronto] = useState(false);
+  const [errore, setErrore] = useState("");
+
+  useEffect(() => {
+    let vivo = true;
+    firebase.auth().signInAnonymously()
+      .then(() => { if (vivo) setPronto(true); })
+      .catch(e => { if (vivo) setErrore("Connessione a Firebase non riuscita: " + e.message); });
+    return () => { vivo = false; };
+  }, []);
+
+  if (errore) return <Avvio testo="Non riesco a collegarmi al database." errore={errore} />;
+  if (!pronto) return <Avvio testo="Collegamento in corso…" />;
+  return <AppCollegata />;
+}
+
+function AppCollegata() {
   const [utente, setUtente] = useState(null);
   const [pag, setPag] = useState("dashboard");
   const [menu, setMenu] = useState(false);
   const [toast, setToast] = useState("");
   const [par, setParState] = useState(PAR_DEFAULT);
+  const seminato = useRef(false);
 
   const utenti = useNode("utenti");
   const movimentiN = useNode("movimenti");
@@ -1575,16 +1604,12 @@ function App() {
   const registro = useNode("registro");
   const parN = useNode("parametri");
 
-  useEffect(() => {
-    firebase.auth().signInAnonymously()
-      .then(() => setPronto(true))
-      .catch(e => { alert("Connessione a Firebase non riuscita: " + e.message); setPronto(true); });
-  }, []);
-
   // primo avvio: crea admin e categorie di base
   useEffect(() => {
-    if (!pronto || utenti === null) return;
+    if (utenti === undefined) return;               // ancora in caricamento
     if (utenti && Object.keys(utenti).length > 0) return;
+    if (seminato.current) return;
+    seminato.current = true;
     (async () => {
       const h = await sha256("dado");
       await ref("utenti/" + uid()).set({username: "admin", nome: "Davide", ruolo: "admin", passwordHash: h, creatoIl: Date.now()});
@@ -1600,7 +1625,7 @@ function App() {
       base.forEach(([nome, tipo, ex]) => { b[uid()] = {nome, tipo, escludiDaPrevisione: ex}; });
       await ref("categorie").update(b);
     })();
-  }, [pronto, utenti]);
+  }, [utenti]);
 
   useEffect(() => { if (parN) setParState({...PAR_DEFAULT, ...parN}); }, [parN]);
 
@@ -1625,11 +1650,10 @@ function App() {
   const saldi = useMemo(() => calcolaSaldi(data.conti, data.movimenti), [data]);
   const prev = useMemo(() => previsione(data, saldi, par), [data, saldi, par]);
 
-  if (!pronto || utenti === null) {
-    return <div className="login-wrap"><div className="login"><h1>Finanze Famiglia</h1><p className="sub">Collegamento in corso…</p></div></div>;
-  }
+  if (utenti === undefined) return <Avvio testo="Carico i dati…" />;
+  if (!utenti || Object.keys(utenti).length === 0) return <Avvio testo="Preparo il primo accesso…" />;
   if (!utente) {
-    return <Login utenti={utenti} seeding={!utenti || Object.keys(utenti).length === 0}
+    return <Login utenti={utenti} seeding={false}
       onLogin={u => { setUtente(u); ref("registro/" + uid()).set({utente: u.username, azione: "Accesso", dettaglio: "", ts: Date.now()}); }} />;
   }
 
