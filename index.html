@@ -407,7 +407,7 @@ function Dashboard({data, saldi, prev, go, mobile}) {
 
   return (
     <div>
-      {!mobile && <><h1 className="h1">Situazione di oggi</h1>
+      {!mobile && <><h1 className="h1">Dashboard</h1>
         <p className="sub">{mLabel(mese)} · aggiornato al {dmy(oggi)}</p></>}
 
       <div className="grid g2" style={{marginBottom: 12}}>
@@ -1271,45 +1271,96 @@ function Membri({data, log}) {
 function Categorie({data, log}) {
   const [edit, setEdit] = useState(null);
   const [nome, setNome] = useState("");
+  const [tipoNuova, setTipoNuova] = useState("uscita");
+
+  const usi = useMemo(() => {
+    const m = {};
+    data.movimenti.forEach(x => { if (x.categoriaId) m[x.categoriaId] = (m[x.categoriaId] || 0) + 1; });
+    data.scadenze.forEach(x => { if (x.categoriaId) m[x.categoriaId] = (m[x.categoriaId] || 0) + 1; });
+    return m;
+  }, [data.movimenti, data.scadenze]);
+
+  const uscite = data.categorie.filter(c => (c.tipo || "uscita") === "uscita");
+  const entrate = data.categorie.filter(c => c.tipo === "entrata");
+  const miste = data.categorie.filter(c => c.tipo === "entrambe");
+
   async function aggiungi() {
-    if (!nome.trim()) return;
-    await ref("categorie/" + uid()).set({nome: nome.trim(), tipo: "uscita", escludiDaPrevisione: false});
-    log("Categoria aggiunta", nome.trim()); setNome("");
+    const n = nome.trim();
+    if (!n) return;
+    if (data.categorie.some(c => c.nome.toLowerCase() === n.toLowerCase())) {
+      alert("Esiste già una categoria con questo nome."); return;
+    }
+    await ref("categorie/" + uid()).set({nome: n, tipo: tipoNuova, escludiDaPrevisione: false});
+    log("Categoria aggiunta", n); setNome("");
   }
   async function salva(c) {
     await ref("categorie/" + c.id).set({nome: c.nome.trim(), tipo: c.tipo, escludiDaPrevisione: !!c.escludiDaPrevisione});
     log("Categoria modificata", c.nome); setEdit(null);
   }
   async function elimina(c) {
-    if (!confirm("Eliminare la categoria " + c.nome + "?")) return;
-    await ref("categorie/" + c.id).remove(); log("Categoria eliminata", c.nome); setEdit(null);
+    const n = usi[c.id] || 0;
+    const testo = n > 0
+      ? "“" + c.nome + "” è usata in " + n + (n === 1 ? " movimento o scadenza" : " tra movimenti e scadenze") +
+        ".\nEliminandola quelle voci restano, ma senza categoria. Procedo?"
+      : "Eliminare la categoria “" + c.nome + "”?";
+    if (!confirm(testo)) return;
+    await ref("categorie/" + c.id).remove();
+    log("Categoria eliminata", c.nome); setEdit(null);
   }
+
+  const blocco = (titolo, arr) => arr.length === 0 ? null : (
+    <div style={{marginBottom: 14}}>
+      <p className="f" style={{marginBottom: 2}}>{titolo}</p>
+      <div className="list">{arr.map(c => (
+        <Riga key={c.id} titolo={c.nome}
+          sotto={[(usi[c.id] || 0) + (usi[c.id] === 1 ? " utilizzo" : " utilizzi"),
+            c.escludiDaPrevisione ? "fuori previsione" : null].filter(Boolean).join(" · ")}
+          importo="›" onClick={() => setEdit(c)} />
+      ))}</div>
+    </div>
+  );
+
   return (
     <div className="card">
-      <div className="cardhead"><span className="h2">Categorie</span></div>
-      <div className="btnrow" style={{marginBottom: 12}}>
-        <input className="inp" style={{flex: 1, minWidth: 140}} value={nome} placeholder="Nuova categoria"
-          onChange={e => setNome(e.target.value)} onKeyDown={e => e.key === "Enter" && aggiungi()} />
-        <button className="btn" onClick={aggiungi}>Aggiungi</button>
-      </div>
-      <div className="list">{data.categorie.map(c => (
-        <Riga key={c.id} titolo={c.nome}
-          sotto={(c.tipo === "entrata" ? "Entrate" : c.tipo === "uscita" ? "Uscite" : "Entrate e uscite") +
-            (c.escludiDaPrevisione ? " · fuori previsione" : "")}
-          onClick={() => setEdit(c)} />
-      ))}</div>
+      <div className="cardhead"><span className="h2">Categorie</span>
+        <span className="small muted">{data.categorie.length} in tutto</span></div>
 
-      {edit && <Sheet title="Categoria" onClose={() => setEdit(null)}
-        footer={<button className="btn" onClick={() => salva(edit)}>Salva</button>}>
-        <Field label="Nome"><input className="inp" value={edit.nome} onChange={e => setEdit({...edit, nome: e.target.value})} /></Field>
+      <Field label="Nuova categoria">
+        <input className="inp" value={nome} placeholder="es. Palestra"
+          onChange={e => setNome(e.target.value)} onKeyDown={e => e.key === "Enter" && aggiungi()} /></Field>
+      <div className="segment" style={{marginBottom: 10}}>
+        <button className={"out " + (tipoNuova === "uscita" ? "on" : "")} onClick={() => setTipoNuova("uscita")}>Uscita</button>
+        <button className={"in " + (tipoNuova === "entrata" ? "on" : "")} onClick={() => setTipoNuova("entrata")}>Entrata</button>
+        <button className={tipoNuova === "entrambe" ? "on" : ""} onClick={() => setTipoNuova("entrambe")}>Entrambe</button>
+      </div>
+      <button className="btn wide" style={{marginBottom: 18}} disabled={!nome.trim()} onClick={aggiungi}>Aggiungi categoria</button>
+
+      {data.categorie.length === 0 ? <Empty>Nessuna categoria.</Empty> : <>
+        {blocco("Uscite", uscite)}
+        {blocco("Entrate", entrate)}
+        {blocco("Entrate e uscite", miste)}
+      </>}
+
+      {edit && <Sheet title="Modifica categoria" onClose={() => setEdit(null)}
+        footer={<>
+          <button className="btn ghost" style={{flex: "0 0 auto"}} onClick={() => elimina(edit)}>Elimina</button>
+          <button className="btn" disabled={!edit.nome.trim()} onClick={() => salva(edit)}>Salva</button>
+        </>}>
+        <Field label="Nome">
+          <input className="inp" value={edit.nome} onChange={e => setEdit({...edit, nome: e.target.value})} /></Field>
         <Field label="Vale per">
-          <select className="inp" value={edit.tipo || "uscita"} onChange={e => setEdit({...edit, tipo: e.target.value})}>
-            <option value="uscita">Uscite</option><option value="entrata">Entrate</option><option value="entrambe">Entrate e uscite</option></select></Field>
+          <div className="segment">
+            <button className={"out " + ((edit.tipo || "uscita") === "uscita" ? "on" : "")} onClick={() => setEdit({...edit, tipo: "uscita"})}>Uscita</button>
+            <button className={"in " + (edit.tipo === "entrata" ? "on" : "")} onClick={() => setEdit({...edit, tipo: "entrata"})}>Entrata</button>
+            <button className={edit.tipo === "entrambe" ? "on" : ""} onClick={() => setEdit({...edit, tipo: "entrambe"})}>Entrambe</button>
+          </div></Field>
         <label className="check">
           <input type="checkbox" checked={!!edit.escludiDaPrevisione}
             onChange={e => setEdit({...edit, escludiDaPrevisione: e.target.checked})} />
           <span>Tieni fuori dalle medie della previsione (giroconti, addebiti carta, partite straordinarie)</span></label>
-        <button className="btn ghost wide" style={{marginTop: 12}} onClick={() => elimina(edit)}>Elimina categoria</button>
+        <p className="small muted">
+          Usata in {usi[edit.id] || 0} tra movimenti e scadenze. Se rinomini la categoria, tutte le voci collegate si aggiornano da sole.
+        </p>
       </Sheet>}
     </div>
   );
@@ -1404,16 +1455,19 @@ function Registro({registro, mobile}) {
 
 /* ─────────── APP ─────────── */
 const TITOLI = {
-  dashboard: "Situazione", movimenti: "Movimenti", scadenze: "Scadenze", bollette: "Bollette",
+  dashboard: "Dashboard", movimenti: "Movimenti", scadenze: "Scadenze", bollette: "Bollette",
   previsioni: "Previsione", anagrafiche: "Anagrafiche", utenti: "Utenti", registro: "Registro attività"
 };
-const TAB = [["dashboard", "Oggi", "◉"], ["movimenti", "Movimenti", "⇅"], ["scadenze", "Scadenze", "◷"],
+const TAB = [["dashboard", "Dashboard", "◉"], ["movimenti", "Movimenti", "⇅"], ["scadenze", "Scadenze", "◷"],
   ["bollette", "Bollette", "❑"], ["altro", "Altro", "⋯"]];
-const NAV_DESK = [["dashboard", "Situazione", "◉"], ["movimenti", "Movimenti", "⇅"], ["scadenze", "Scadenze", "◷"],
+const NAV_DESK = [["dashboard", "Dashboard", "◉"], ["movimenti", "Movimenti", "⇅"], ["scadenze", "Scadenze", "◷"],
   ["bollette", "Bollette", "❑"], ["previsioni", "Previsione", "◇"], ["anagrafiche", "Anagrafiche", "☰"]];
 const NAV_ADMIN = [["utenti", "Utenti", "◍"], ["registro", "Registro attività", "≡"]];
 const PAR_DEFAULT = {mesi: 6, storico: 6, soglia: 2000, imprevisti: 10, entrateManuale: "", usciteManuale: ""};
 const AGGIUNGIBILE = {movimenti: 1, scadenze: 1, bollette: 1};
+const CHIAVE_SESSIONE = "finanze-famiglia-sessione";
+const leggiSessione = () => { try { return localStorage.getItem(CHIAVE_SESSIONE); } catch (e) { return null; } };
+const scriviSessione = (v) => { try { v ? localStorage.setItem(CHIAVE_SESSIONE, v) : localStorage.removeItem(CHIAVE_SESSIONE); } catch (e) {} };
 
 function Avvio({testo, errore}) {
   return <div className="login-wrap"><div className="login">
@@ -1440,6 +1494,7 @@ function App() {
 
 function AppCollegata() {
   const [utente, setUtente] = useState(null);
+  const [sessione, setSessione] = useState(leggiSessione);
   const [pag, setPag] = useState("dashboard");
   const [altro, setAltro] = useState(false);
   const [toast, setToast] = useState("");
@@ -1480,6 +1535,22 @@ function AppCollegata() {
   }, [utenti]);
 
   useEffect(() => { if (parN) setParState({...PAR_DEFAULT, ...parN}); }, [parN]);
+
+  // riprende la sessione salvata sul dispositivo
+  useEffect(() => {
+    if (utente || !sessione || utenti === undefined) return;
+    if (utenti && utenti[sessione]) setUtente({id: sessione, ...utenti[sessione]});
+    else { setSessione(null); scriviSessione(null); }   // utente rimosso nel frattempo
+  }, [utente, sessione, utenti]);
+
+  const entra = useCallback(u => {
+    setUtente(u); setSessione(u.id); scriviSessione(u.id);
+    ref("registro/" + uid()).set({utente: u.username, azione: "Accesso", dettaglio: "", ts: Date.now()});
+  }, []);
+  const esci = useCallback(() => {
+    if (!confirm("Vuoi uscire? Alla prossima apertura ti verrà richiesta la password.")) return;
+    setUtente(null); setSessione(null); scriviSessione(null); setAltro(false);
+  }, []);
   const setPar = useCallback(p => { setParState(p); ref("parametri").set(p); }, []);
   const log = useCallback((azione, dettaglio) => {
     if (!utente) return;
@@ -1502,10 +1573,8 @@ function AppCollegata() {
 
   if (utenti === undefined) return <Avvio testo="Carico i dati…" />;
   if (!utenti || Object.keys(utenti).length === 0) return <Avvio testo="Preparo il primo accesso…" />;
-  if (!utente) return <Login utenti={utenti} onLogin={u => {
-    setUtente(u);
-    ref("registro/" + uid()).set({utente: u.username, azione: "Accesso", dettaglio: "", ts: Date.now()});
-  }} />;
+  if (!utente && sessione) return <Avvio testo="Ti riconosco, un attimo…" />;
+  if (!utente) return <Login utenti={utenti} onLogin={entra} />;
 
   const vai = p => { setPag(p); setAltro(false); setNuovoSegnale(0); };
   const admin = utente.ruolo === "admin";
@@ -1538,7 +1607,7 @@ function AppCollegata() {
               <span className="ic">{i}</span>{t}</button>)}
         </>}
         <div className="side-foot">
-          <button className="navlink" onClick={() => setUtente(null)}><span className="ic">⤶</span>Esci</button></div>
+          <button className="navlink" onClick={esci}><span className="ic">⤶</span>Esci</button></div>
       </nav>
 
       <div className="appbar">
@@ -1546,7 +1615,7 @@ function AppCollegata() {
           <h1>{TITOLI[pag]}</h1>
           <div className="who">{utente.nome || utente.username}</div>
         </div>
-        {pag === "dashboard" && <button className="act" onClick={() => setUtente(null)}>Esci</button>}
+        {pag === "dashboard" && <button className="act" onClick={esci}>Esci</button>}
       </div>
 
       <main className="main">{contenuto}</main>
@@ -1567,7 +1636,7 @@ function AppCollegata() {
           <Riga titolo="Anagrafiche" sotto="Conti e carte, membri, categorie" onClick={() => vai("anagrafiche")} />
           {admin && <Riga titolo="Utenti" sotto="Chi può entrare nell'app" onClick={() => vai("utenti")} />}
           {admin && <Riga titolo="Registro attività" sotto="Chi ha fatto cosa" onClick={() => vai("registro")} />}
-          <Riga titolo="Esci" sotto={"Sei entrato come " + utente.username} onClick={() => { setUtente(null); setAltro(false); }} />
+          <Riga titolo="Esci" sotto={"Sei entrato come " + utente.username} onClick={esci} />
         </div>
       </Sheet>}
 
