@@ -636,6 +636,10 @@ function ImportExcel({data, utente, log, onClose}) {
   const [errore, setErrore] = useState("");
   const [busy, setBusy] = useState(false);
   const [creaMancanti, setCreaMancanti] = useState(true);
+  const [wb, setWb] = useState(null);
+  const [fogli, setFogli] = useState([]);
+  const [foglio, setFoglio] = useState("");
+  const [nomeFile, setNomeFile] = useState("");
 
   function modello() {
     const ws = XLSX.utils.aoa_to_sheet([COLONNE,
@@ -647,29 +651,48 @@ function ImportExcel({data, utente, log, onClose}) {
     download("modello-movimenti.xlsx", new Blob([XLSX.write(wb, {bookType: "xlsx", type: "array"})], {type: "application/octet-stream"}));
   }
   function leggi(file) {
-    setErrore("");
+    setErrore(""); setRighe(null); setWb(null); setFogli([]); setFoglio("");
+    setNomeFile(file.name);
     const r = new FileReader();
     r.onload = ev => {
       try {
-        const wb = XLSX.read(new Uint8Array(ev.target.result), {type: "array", cellDates: true});
-        const raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval: ""});
-        if (!raw.length) { setErrore("Il file non contiene righe."); return; }
-        setRighe(raw.map((r0, i) => {
-          const get = k => { const key = Object.keys(r0).find(x => x.trim().toLowerCase() === k.toLowerCase()); return key ? r0[key] : ""; };
-          const d = excelDate(get("Data"));
-          const imp = Math.abs(num(get("Importo")));
-          return {
-            _n: i + 2, data: d, descrizione: String(get("Descrizione")).trim(),
-            tipo: String(get("Tipo")).trim().toLowerCase().startsWith("e") ? "Entrata" : "Uscita",
-            importo: imp, membro: String(get("Membro")).trim(), conto: String(get("Conto")).trim(),
-            categoria: String(get("Categoria")).trim(), note: String(get("Note")).trim(),
-            _err: !d ? "data non valida" : (imp <= 0 ? "importo mancante" : "")
-          };
-        }));
+        const libro = XLSX.read(new Uint8Array(ev.target.result), {type: "array", cellDates: true});
+        if (!libro.SheetNames.length) { setErrore("Il file non contiene fogli."); return; }
+        setWb(libro); setFogli(libro.SheetNames); setFoglio(libro.SheetNames[0]);
       } catch (ex) { setErrore("Non riesco a leggere il file: " + ex.message); }
     };
     r.readAsArrayBuffer(file);
   }
+
+  // analizza il foglio scelto
+  useEffect(() => {
+    if (!wb || !foglio) return;
+    try {
+      const ws = wb.Sheets[foglio];
+      const raw = ws ? XLSX.utils.sheet_to_json(ws, {defval: ""}) : [];
+      if (!raw.length) { setRighe([]); setErrore("Il foglio “" + foglio + "” non contiene righe."); return; }
+      const intestazioni = Object.keys(raw[0]).map(x => x.trim().toLowerCase());
+      const trovate = COLONNE.filter(c => intestazioni.includes(c.toLowerCase()));
+      if (!trovate.includes("Data") || !trovate.includes("Importo")) {
+        setRighe([]);
+        setErrore("Nel foglio “" + foglio + "” non trovo le colonne Data e Importo. Controlla che la prima riga contenga le intestazioni.");
+        return;
+      }
+      setErrore("");
+      setRighe(raw.map((r0, i) => {
+        const get = k => { const key = Object.keys(r0).find(x => x.trim().toLowerCase() === k.toLowerCase()); return key ? r0[key] : ""; };
+        const d = excelDate(get("Data"));
+        const imp = Math.abs(num(get("Importo")));
+        return {
+          _n: i + 2, data: d, descrizione: String(get("Descrizione")).trim(),
+          tipo: String(get("Tipo")).trim().toLowerCase().startsWith("e") ? "Entrata" : "Uscita",
+          importo: imp, membro: String(get("Membro")).trim(), conto: String(get("Conto")).trim(),
+          categoria: String(get("Categoria")).trim(), note: String(get("Note")).trim(),
+          _err: !d ? "data non valida" : (imp <= 0 ? "importo mancante" : "")
+        };
+      }));
+    } catch (ex) { setErrore("Non riesco a leggere il foglio: " + ex.message); }
+  }, [wb, foglio]);
   const valide = righe ? righe.filter(r => !r._err) : [];
   const scartate = righe ? righe.filter(r => r._err) : [];
   const trova = (arr, n) => arr.find(x => String(x.nome).trim().toLowerCase() === String(n).trim().toLowerCase());
@@ -713,8 +736,10 @@ function ImportExcel({data, utente, log, onClose}) {
 
   return (
     <Sheet title="Importa da Excel" onClose={onClose} wide
-      footer={righe ? <>
-        <button className="btn ghost" style={{flex: "0 0 auto"}} onClick={() => setRighe(null)}>Indietro</button>
+      footer={wb ? <>
+        <button className="btn ghost" style={{flex: "0 0 auto"}}
+          onClick={() => { setWb(null); setRighe(null); setFogli([]); setFoglio(""); setNomeFile(""); setErrore(""); }}>
+          Indietro</button>
         <button className="btn" disabled={busy || !valide.length} onClick={importa}>
           {busy ? "Importo…" : "Importa " + valide.length}</button>
       </> : null}>
@@ -724,12 +749,24 @@ function ImportExcel({data, utente, log, onClose}) {
       <div className="btnrow" style={{marginBottom: 14}}>
         <button className="btn ghost" onClick={modello}>Scarica il modello</button>
         <label className="btn" style={{cursor: "pointer", display: "inline-flex", alignItems: "center"}}>
-          Scegli il file
-          <input type="file" accept=".xlsx,.xls,.csv" style={{display: "none"}}
+          {nomeFile ? "Cambia file" : "Scegli il file"}
+          <input type="file" accept=".xlsx,.xls,.xlsm,.csv" style={{display: "none"}}
             onChange={e => e.target.files[0] && leggi(e.target.files[0])} /></label>
       </div>
+
+      {nomeFile && <p className="small" style={{marginTop: 0}}>File: <b>{nomeFile}</b></p>}
+
+      {fogli.length > 0 && <Field label={"Foglio da importare (" + fogli.length + " disponibili)"}>
+        {fogli.length <= 4
+          ? <div className="segment">
+              {fogli.map(f => <button key={f} className={foglio === f ? "on" : ""} onClick={() => setFoglio(f)}>{f}</button>)}
+            </div>
+          : <select className="inp" value={foglio} onChange={e => setFoglio(e.target.value)}>
+              {fogli.map(f => <option key={f} value={f}>{f}</option>)}</select>}
+      </Field>}
+
       {errore && <p className="out-c small">{errore}</p>}
-      {righe && <>
+      {righe && righe.length > 0 && <>
         <p className="small"><b>{valide.length}</b> righe pronte
           {scartate.length > 0 && <> · <span className="out-c">{scartate.length} scartate</span></>}</p>
         {scartate.length > 0 && <p className="small muted">
