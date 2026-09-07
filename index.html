@@ -14,6 +14,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
@@ -1491,7 +1493,73 @@ function Registro({registro, mobile}) {
 }
 
 /* ─────────── ANALISI ─────────── */
-function Analisi({data, mobile}) {
+const nEur = (v) => (Number(v) || 0).toLocaleString("it-IT", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+function generaPDF({titolo, periodo, filtri, kpi, intestazioniRiepilogo, righeRiepilogo, movimenti, nomeFile, utente}) {
+  const jsPDFctor = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDFctor) { alert("Le librerie del PDF non si sono caricate. Controlla la connessione e riprova."); return; }
+  const doc = new jsPDFctor({unit: "pt", format: "a4"});
+  const W = doc.internal.pageSize.getWidth();
+  const M = 40;
+  let y = 46;
+
+  doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(22, 32, 43);
+  doc.text("Finanze Famiglia", M, y);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(90, 105, 120);
+  doc.text(titolo, M, y + 17);
+  doc.setFontSize(9);
+  doc.text(periodo, M, y + 31);
+  if (filtri) doc.text("Filtri: " + filtri, M, y + 43);
+  const stamp = "Generato il " + new Date().toLocaleString("it-IT", {day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"}) + (utente ? " da " + utente : "");
+  doc.text(stamp, W - M, y, {align: "right"});
+  doc.text("Importi in euro", W - M, y + 12, {align: "right"});
+  y += filtri ? 60 : 48;
+
+  doc.setDrawColor(210, 216, 210); doc.line(M, y, W - M, y); y += 18;
+
+  doc.setFontSize(10); doc.setTextColor(22, 32, 43);
+  const larg = (W - M * 2) / kpi.length;
+  kpi.forEach((k, i) => {
+    doc.setFont("helvetica", "normal"); doc.setTextColor(110, 122, 134); doc.setFontSize(9);
+    doc.text(k[0], M + larg * i, y);
+    doc.setFont("helvetica", "bold"); doc.setTextColor(22, 32, 43); doc.setFontSize(13);
+    doc.text(k[1], M + larg * i, y + 16);
+  });
+  y += 34;
+
+  doc.autoTable({
+    startY: y, head: [intestazioniRiepilogo], body: righeRiepilogo, margin: {left: M, right: M},
+    styles: {font: "helvetica", fontSize: 9, cellPadding: 5, textColor: [22, 32, 43], lineColor: [226, 230, 224], lineWidth: .5},
+    headStyles: {fillColor: [22, 32, 43], textColor: 255, fontStyle: "bold", fontSize: 8.5},
+    alternateRowStyles: {fillColor: [247, 249, 246]},
+    columnStyles: {1: {halign: "right"}, 2: {halign: "right"}, 3: {halign: "right"}, 4: {halign: "right"}}
+  });
+
+  if (movimenti && movimenti.length) {
+    doc.addPage();
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(22, 32, 43);
+    doc.text("Dettaglio movimenti", M, 46);
+    doc.autoTable({
+      startY: 62,
+      head: [["Data", "Descrizione", "Categoria", "Persona", "Conto", "Tipo", "Importo"]],
+      body: movimenti, margin: {left: M, right: M},
+      styles: {font: "helvetica", fontSize: 8, cellPadding: 4, textColor: [22, 32, 43], lineColor: [226, 230, 224], lineWidth: .5},
+      headStyles: {fillColor: [22, 32, 43], textColor: 255, fontStyle: "bold", fontSize: 8},
+      alternateRowStyles: {fillColor: [247, 249, 246]},
+      columnStyles: {0: {cellWidth: 48}, 5: {cellWidth: 42}, 6: {halign: "right", cellWidth: 60}}
+    });
+  }
+
+  const tot = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= tot; i++) {
+    doc.setPage(i);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(140, 150, 160);
+    doc.text("Pagina " + i + " di " + tot, W - M, doc.internal.pageSize.getHeight() - 22, {align: "right"});
+  }
+  doc.save(nomeFile);
+}
+
+function Analisi({data, mobile, utente}) {
   const {movimenti, categorie, membri, conti} = data;
   const [modo, setModo] = useState("mese");
   const [mese, setMese] = useState(mKey(todayISO()));
@@ -1499,6 +1567,10 @@ function Analisi({data, mobile}) {
   const [lato, setLato] = useState("Uscita");
   const [gruppo, setGruppo] = useState("categoria");
   const [apri, setApri] = useState(null);
+  const [filtri, setFiltri] = useState(false);
+  const [esporta, setEsporta] = useState(false);
+  const [conDettaglio, setConDettaglio] = useState(true);
+  const [f, setF] = useState({conto: "", categoria: "", membro: ""});
 
   const mesi = useMemo(() => {
     const s = new Set(movimenti.map(m => mKey(m.data)).filter(Boolean));
@@ -1511,6 +1583,13 @@ function Analisi({data, mobile}) {
     return Array.from(s).sort().reverse();
   }, [movimenti]);
 
+  const passa = useCallback(m => {
+    if (f.conto && m.contoId !== f.conto) return false;
+    if (f.categoria && m.categoriaId !== f.categoria) return false;
+    if (f.membro && m.membroId !== f.membro) return false;
+    return true;
+  }, [f]);
+
   const inPeriodo = useCallback((m, quale) => {
     if (modo === "tutto") return quale === "ora";
     if (modo === "mese") return mKey(m.data) === (quale === "ora" ? mese : addMonths(mese, -1));
@@ -1520,39 +1599,79 @@ function Analisi({data, mobile}) {
 
   const etichetta = gruppo === "categoria" ? categorie : gruppo === "membro" ? membri : conti;
   const campo = gruppo === "categoria" ? "categoriaId" : gruppo === "membro" ? "membroId" : "contoId";
-  const senza = gruppo === "categoria" ? "Senza categoria" : gruppo === "membro" ? "Senza membro" : "Senza conto";
+  const senza = gruppo === "categoria" ? "Senza categoria" : gruppo === "membro" ? "Senza persona" : "Senza conto";
+  const nomeDi = (arr, id, fb) => { const x = arr.find(a => a.id === id); return x ? x.nome : (fb || ""); };
 
-  function aggrega(quale) {
+  const aggrega = useCallback(quale => {
     const map = {};
-    movimenti.filter(m => m.tipo === lato && inPeriodo(m, quale)).forEach(m => {
+    movimenti.filter(m => m.tipo === lato && passa(m) && inPeriodo(m, quale)).forEach(m => {
       const k = m[campo] || "_";
       if (!map[k]) map[k] = {tot: 0, n: 0};
       map[k].tot += num(m.importo); map[k].n++;
     });
     return map;
-  }
-  const ora = useMemo(() => aggrega("ora"), [movimenti, lato, gruppo, modo, mese, anno]);
-  const prima = useMemo(() => modo === "tutto" ? {} : aggrega("prima"), [movimenti, lato, gruppo, modo, mese, anno]);
+  }, [movimenti, lato, campo, passa, inPeriodo]);
 
-  const voci = Object.entries(ora).map(([k, v]) => {
-    const e = etichetta.find(x => x.id === k);
-    return {id: k, nome: e ? e.nome : senza, tot: v.tot, n: v.n, prima: prima[k] ? prima[k].tot : 0};
-  }).sort((a, b) => b.tot - a.tot);
+  const ora = useMemo(() => aggrega("ora"), [aggrega]);
+  const prima = useMemo(() => modo === "tutto" ? {} : aggrega("prima"), [aggrega, modo]);
+
+  const voci = useMemo(() => Object.entries(ora).map(([k, v]) => ({
+    id: k, nome: k === "_" ? senza : nomeDi(etichetta, k, senza),
+    tot: v.tot, n: v.n, prima: prima[k] ? prima[k].tot : 0
+  })).sort((a, b) => b.tot - a.tot), [ora, prima, etichetta, senza]);
 
   const totale = voci.reduce((s, v) => s + v.tot, 0);
   const totalePrima = Object.values(prima).reduce((s, v) => s + v.tot, 0);
   const max = voci.length ? voci[0].tot : 1;
   const delta = totale - totalePrima;
 
-  const entrateTot = movimenti.filter(m => m.tipo === "Entrata" && inPeriodo(m, "ora")).reduce((s, m) => s + num(m.importo), 0);
-  const usciteTot = movimenti.filter(m => m.tipo === "Uscita" && inPeriodo(m, "ora")).reduce((s, m) => s + num(m.importo), 0);
+  const delPeriodo = movimenti.filter(m => passa(m) && inPeriodo(m, "ora"));
+  const entrateTot = delPeriodo.filter(m => m.tipo === "Entrata").reduce((s, m) => s + num(m.importo), 0);
+  const usciteTot = delPeriodo.filter(m => m.tipo === "Uscita").reduce((s, m) => s + num(m.importo), 0);
 
-  const periodoTesto = modo === "mese" ? mLabel(mese) : modo === "anno" ? "anno " + anno : "tutto lo storico";
+  const periodoTesto = modo === "mese" ? mLabel(mese) : modo === "anno" ? "Anno " + anno : "Tutto lo storico";
   const confrontoTesto = modo === "mese" ? "mese precedente" : modo === "anno" ? "anno precedente" : "";
+  const nAttivi = ["conto", "categoria", "membro"].filter(k => f[k]).length;
+  const filtriTesto = [
+    f.conto ? "conto " + nomeDi(conti, f.conto) : null,
+    f.categoria ? "categoria " + nomeDi(categorie, f.categoria) : null,
+    f.membro ? "persona " + nomeDi(membri, f.membro) : null
+  ].filter(Boolean).join(", ");
 
   const dettaglio = apri ? movimenti
-    .filter(m => m.tipo === lato && inPeriodo(m, "ora") && (m[campo] || "_") === apri.id)
+    .filter(m => m.tipo === lato && passa(m) && inPeriodo(m, "ora") && (m[campo] || "_") === apri.id)
     .sort((a, b) => String(b.data).localeCompare(String(a.data))) : [];
+
+  function scarica() {
+    const etichettaGruppo = gruppo === "categoria" ? "Categoria" : gruppo === "membro" ? "Persona" : "Conto";
+    const righeRiepilogo = voci.map(v => [
+      v.nome, nEur(v.tot),
+      (totale ? (v.tot / totale * 100) : 0).toFixed(1) + "%",
+      String(v.n),
+      confrontoTesto ? (v.prima === 0 ? "nuova" : (v.tot - v.prima > 0 ? "+" : "−") + nEur(Math.abs(v.tot - v.prima))) : "—"
+    ]);
+    righeRiepilogo.push(["TOTALE", nEur(totale), "100%", String(voci.reduce((s, v) => s + v.n, 0)),
+      confrontoTesto && totalePrima ? (delta > 0 ? "+" : "−") + nEur(Math.abs(delta)) : "—"]);
+
+    const dett = conDettaglio ? delPeriodo
+      .filter(m => m.tipo === lato)
+      .sort((a, b) => String(a.data).localeCompare(String(b.data)))
+      .map(m => [dmy(m.data), m.descrizione || "", nomeDi(categorie, m.categoriaId, "—"),
+        nomeDi(membri, m.membroId, "—"), nomeDi(conti, m.contoId, "—"), m.tipo, nEur(num(m.importo))]) : null;
+
+    const slug = (modo === "mese" ? mese : modo === "anno" ? anno : "storico");
+    generaPDF({
+      titolo: "Report " + (lato === "Uscita" ? "uscite" : "entrate") + " per " + etichettaGruppo.toLowerCase(),
+      periodo: "Periodo: " + periodoTesto,
+      filtri: filtriTesto,
+      kpi: [["Entrate", nEur(entrateTot)], ["Uscite", nEur(usciteTot)], ["Saldo", nEur(entrateTot - usciteTot)]],
+      intestazioniRiepilogo: [etichettaGruppo, "Importo", "% sul totale", "Movimenti",
+        confrontoTesto ? "Variazione" : "—"],
+      righeRiepilogo, movimenti: dett, utente: utente ? utente.username : "",
+      nomeFile: "report-" + (lato === "Uscita" ? "uscite" : "entrate") + "-" + slug + ".pdf"
+    });
+    setEsporta(false);
+  }
 
   return (
     <div>
@@ -1573,16 +1692,19 @@ function Analisi({data, mobile}) {
         {anni.map(a => <button key={a} className={"chip" + (anno === a ? " on" : "")} onClick={() => setAnno(a)}>{a}</button>)}
       </div>}
 
+      <div className="btnrow" style={{marginBottom: 12}}>
+        <button className="btn ghost sm" onClick={() => setFiltri(true)}>Filtri{nAttivi ? " (" + nAttivi + ")" : ""}</button>
+        {nAttivi > 0 && <button className="btn ghost sm" onClick={() => setF({conto: "", categoria: "", membro: ""})}>Azzera</button>}
+        <button className="btn ghost sm" onClick={() => setEsporta(true)}>Report PDF</button>
+      </div>
+      {nAttivi > 0 && <p className="small muted" style={{marginTop: -6}}>Filtrato per {filtriTesto}.</p>}
+
       <div className="grid g2" style={{marginBottom: 12}}>
-        <div className="kpi">
-          <div className="lab">Entrate</div>
-          <div className="val num in-c">{eurK(entrateTot)}</div>
-        </div>
-        <div className="kpi">
-          <div className="lab">Uscite</div>
+        <div className="kpi"><div className="lab">Entrate</div>
+          <div className="val num in-c">{eurK(entrateTot)}</div></div>
+        <div className="kpi"><div className="lab">Uscite</div>
           <div className="val num out-c">{eurK(usciteTot)}</div>
-          <div className="hint">saldo {eurK(entrateTot - usciteTot)}</div>
-        </div>
+          <div className="hint">saldo {eurK(entrateTot - usciteTot)}</div></div>
       </div>
 
       <div className="segment" style={{marginBottom: 10}}>
@@ -1607,13 +1729,14 @@ function Analisi({data, mobile}) {
             </span> <span className="muted">rispetto al {confrontoTesto}</span>
           </p>}
 
-        {voci.length === 0 ? <Empty>Nessun movimento in questo periodo.</Empty> :
+        {voci.length === 0 ? <Empty>Nessun movimento con questi criteri.</Empty> :
           voci.map(v => {
             const d = v.tot - v.prima;
             const perc = totale ? v.tot / totale * 100 : 0;
             return (
               <button key={v.id} onClick={() => setApri(v)}
-                style={{display: "block", width: "100%", textAlign: "left", background: "none", border: 0, padding: "10px 0", borderBottom: "1px solid var(--line)", cursor: "pointer"}}>
+                style={{display: "block", width: "100%", textAlign: "left", background: "none", border: 0,
+                  padding: "10px 0", borderBottom: "1px solid var(--line)", cursor: "pointer"}}>
                 <div style={{display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 5}}>
                   <span style={{fontWeight: 600, fontSize: 15.5}}>{v.nome}</span>
                   <span className="num" style={{fontWeight: 700, whiteSpace: "nowrap"}}>{eur(v.tot)}</span>
@@ -1630,6 +1753,39 @@ function Analisi({data, mobile}) {
           })}
       </div>
 
+      {filtri && <Sheet title="Filtri" onClose={() => setFiltri(false)}
+        footer={<>
+          <button className="btn ghost" style={{flex: "0 0 auto"}}
+            onClick={() => setF({conto: "", categoria: "", membro: ""})}>Azzera</button>
+          <button className="btn" onClick={() => setFiltri(false)}>Applica</button>
+        </>}>
+        <Field label="Conto o carta">
+          <select className="inp" value={f.conto} onChange={e => setF({...f, conto: e.target.value})}>
+            <option value="">Tutti</option>{conti.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></Field>
+        <Field label="Categoria">
+          <select className="inp" value={f.categoria} onChange={e => setF({...f, categoria: e.target.value})}>
+            <option value="">Tutte</option>{categorie.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></Field>
+        <Field label="Persona">
+          <select className="inp" value={f.membro} onChange={e => setF({...f, membro: e.target.value})}>
+            <option value="">Tutte</option>{membri.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select></Field>
+        <p className="small muted">I filtri valgono per i totali, per la ripartizione e per il report PDF.</p>
+      </Sheet>}
+
+      {esporta && <Sheet title="Report PDF" onClose={() => setEsporta(false)}
+        footer={<button className="btn" onClick={scarica}>Genera il PDF</button>}>
+        <p className="small" style={{marginTop: 0}}>Il report riprende esattamente quello che stai guardando:</p>
+        <div className="rowline"><span className="muted">Periodo</span><b>{periodoTesto}</b></div>
+        <div className="rowline"><span className="muted">Contenuto</span><b>{lato === "Uscita" ? "Uscite" : "Entrate"}</b></div>
+        <div className="rowline"><span className="muted">Raggruppate per</span>
+          <b>{gruppo === "categoria" ? "Categoria" : gruppo === "membro" ? "Persona" : "Conto"}</b></div>
+        <div className="rowline"><span className="muted">Filtri</span><b>{filtriTesto || "nessuno"}</b></div>
+        <div className="rowline"><span className="muted">Voci</span><b>{voci.length}</b></div>
+        <label className="check" style={{marginTop: 12}}>
+          <input type="checkbox" checked={conDettaglio} onChange={e => setConDettaglio(e.target.checked)} />
+          <span>Includi l'elenco dei singoli movimenti in fondo al report
+            <span className="muted"> ({delPeriodo.filter(m => m.tipo === lato).length} righe)</span></span></label>
+      </Sheet>}
+
       {apri && <Sheet title={apri.nome} onClose={() => setApri(null)}
         footer={<button className="btn" onClick={() => setApri(null)}>Chiudi</button>}>
         <div className="grid g2" style={{marginBottom: 12}}>
@@ -1640,13 +1796,12 @@ function Analisi({data, mobile}) {
             <div className="hint">{apri.n} {apri.n === 1 ? "movimento" : "movimenti"}</div></div>
         </div>
         <div className="list">
-          {dettaglio.slice(0, 100).map(m => {
-            const c = categorie.find(x => x.id === m.categoriaId);
-            const p = membri.find(x => x.id === m.membroId);
-            return <Riga key={m.id} titolo={m.descrizione}
-              sotto={[dBreve(m.data), gruppo !== "categoria" && c ? c.nome : null, gruppo !== "membro" && p ? p.nome : null].filter(Boolean).join(" · ")}
-              importo={eur(num(m.importo))} colore={lato === "Entrata" ? "in-c" : "out-c"} />;
-          })}
+          {dettaglio.slice(0, 100).map(m => (
+            <Riga key={m.id} titolo={m.descrizione}
+              sotto={[dBreve(m.data), gruppo !== "categoria" ? nomeDi(categorie, m.categoriaId) : null,
+                gruppo !== "membro" ? nomeDi(membri, m.membroId) : null].filter(Boolean).join(" · ")}
+              importo={eur(num(m.importo))} colore={lato === "Entrata" ? "in-c" : "out-c"} />
+          ))}
         </div>
         {dettaglio.length > 100 && <p className="small muted">Mostrati i primi 100 di {dettaglio.length}.</p>}
       </Sheet>}
