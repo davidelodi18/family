@@ -453,7 +453,7 @@ function Dashboard({data, saldi, prev, go, mobile}) {
 
       <div className="card">
         <div className="cardhead"><span className="h2">Uscite di {MESI[Number(mese.slice(5)) - 1]}</span>
-          <button className="btn ghost sm" onClick={() => go("movimenti")}>Movimenti</button></div>
+          <button className="btn ghost sm" onClick={() => go("analisi")}>Analisi</button></div>
         {topCat.length === 0 ? <Empty>Nessuna uscita registrata questo mese.</Empty> :
           topCat.map(([nome, tot]) => (
             <div key={nome} style={{marginBottom: 11}}>
@@ -1490,15 +1490,180 @@ function Registro({registro, mobile}) {
   );
 }
 
+/* ─────────── ANALISI ─────────── */
+function Analisi({data, mobile}) {
+  const {movimenti, categorie, membri, conti} = data;
+  const [modo, setModo] = useState("mese");
+  const [mese, setMese] = useState(mKey(todayISO()));
+  const [anno, setAnno] = useState(String(new Date().getFullYear()));
+  const [lato, setLato] = useState("Uscita");
+  const [gruppo, setGruppo] = useState("categoria");
+  const [apri, setApri] = useState(null);
+
+  const mesi = useMemo(() => {
+    const s = new Set(movimenti.map(m => mKey(m.data)).filter(Boolean));
+    s.add(mKey(todayISO()));
+    return Array.from(s).sort().reverse();
+  }, [movimenti]);
+  const anni = useMemo(() => {
+    const s = new Set(movimenti.map(m => String(m.data || "").slice(0, 4)).filter(Boolean));
+    s.add(String(new Date().getFullYear()));
+    return Array.from(s).sort().reverse();
+  }, [movimenti]);
+
+  const inPeriodo = useCallback((m, quale) => {
+    if (modo === "tutto") return quale === "ora";
+    if (modo === "mese") return mKey(m.data) === (quale === "ora" ? mese : addMonths(mese, -1));
+    const a = quale === "ora" ? anno : String(Number(anno) - 1);
+    return String(m.data || "").slice(0, 4) === a;
+  }, [modo, mese, anno]);
+
+  const etichetta = gruppo === "categoria" ? categorie : gruppo === "membro" ? membri : conti;
+  const campo = gruppo === "categoria" ? "categoriaId" : gruppo === "membro" ? "membroId" : "contoId";
+  const senza = gruppo === "categoria" ? "Senza categoria" : gruppo === "membro" ? "Senza membro" : "Senza conto";
+
+  function aggrega(quale) {
+    const map = {};
+    movimenti.filter(m => m.tipo === lato && inPeriodo(m, quale)).forEach(m => {
+      const k = m[campo] || "_";
+      if (!map[k]) map[k] = {tot: 0, n: 0};
+      map[k].tot += num(m.importo); map[k].n++;
+    });
+    return map;
+  }
+  const ora = useMemo(() => aggrega("ora"), [movimenti, lato, gruppo, modo, mese, anno]);
+  const prima = useMemo(() => modo === "tutto" ? {} : aggrega("prima"), [movimenti, lato, gruppo, modo, mese, anno]);
+
+  const voci = Object.entries(ora).map(([k, v]) => {
+    const e = etichetta.find(x => x.id === k);
+    return {id: k, nome: e ? e.nome : senza, tot: v.tot, n: v.n, prima: prima[k] ? prima[k].tot : 0};
+  }).sort((a, b) => b.tot - a.tot);
+
+  const totale = voci.reduce((s, v) => s + v.tot, 0);
+  const totalePrima = Object.values(prima).reduce((s, v) => s + v.tot, 0);
+  const max = voci.length ? voci[0].tot : 1;
+  const delta = totale - totalePrima;
+
+  const entrateTot = movimenti.filter(m => m.tipo === "Entrata" && inPeriodo(m, "ora")).reduce((s, m) => s + num(m.importo), 0);
+  const usciteTot = movimenti.filter(m => m.tipo === "Uscita" && inPeriodo(m, "ora")).reduce((s, m) => s + num(m.importo), 0);
+
+  const periodoTesto = modo === "mese" ? mLabel(mese) : modo === "anno" ? "anno " + anno : "tutto lo storico";
+  const confrontoTesto = modo === "mese" ? "mese precedente" : modo === "anno" ? "anno precedente" : "";
+
+  const dettaglio = apri ? movimenti
+    .filter(m => m.tipo === lato && inPeriodo(m, "ora") && (m[campo] || "_") === apri.id)
+    .sort((a, b) => String(b.data).localeCompare(String(a.data))) : [];
+
+  return (
+    <div>
+      {!mobile && <><h1 className="h1">Analisi</h1>
+        <p className="sub">Dove finiscono i soldi, per categoria, per persona e per conto.</p></>}
+
+      <div className="segment" style={{marginBottom: 10}}>
+        <button className={modo === "mese" ? "on" : ""} onClick={() => setModo("mese")}>Mese</button>
+        <button className={modo === "anno" ? "on" : ""} onClick={() => setModo("anno")}>Anno</button>
+        <button className={modo === "tutto" ? "on" : ""} onClick={() => setModo("tutto")}>Tutto</button>
+      </div>
+
+      {modo === "mese" && <div className="chips">
+        {mesi.slice(0, 18).map(k =>
+          <button key={k} className={"chip" + (mese === k ? " on" : "")} onClick={() => setMese(k)}>{mLabelB(k)}</button>)}
+      </div>}
+      {modo === "anno" && <div className="chips">
+        {anni.map(a => <button key={a} className={"chip" + (anno === a ? " on" : "")} onClick={() => setAnno(a)}>{a}</button>)}
+      </div>}
+
+      <div className="grid g2" style={{marginBottom: 12}}>
+        <div className="kpi">
+          <div className="lab">Entrate</div>
+          <div className="val num in-c">{eurK(entrateTot)}</div>
+        </div>
+        <div className="kpi">
+          <div className="lab">Uscite</div>
+          <div className="val num out-c">{eurK(usciteTot)}</div>
+          <div className="hint">saldo {eurK(entrateTot - usciteTot)}</div>
+        </div>
+      </div>
+
+      <div className="segment" style={{marginBottom: 10}}>
+        <button className={"out " + (lato === "Uscita" ? "on" : "")} onClick={() => setLato("Uscita")}>Uscite</button>
+        <button className={"in " + (lato === "Entrata" ? "on" : "")} onClick={() => setLato("Entrata")}>Entrate</button>
+      </div>
+      <div className="segment" style={{marginBottom: 14}}>
+        <button className={gruppo === "categoria" ? "on" : ""} onClick={() => setGruppo("categoria")}>Categoria</button>
+        <button className={gruppo === "membro" ? "on" : ""} onClick={() => setGruppo("membro")}>Persona</button>
+        <button className={gruppo === "conto" ? "on" : ""} onClick={() => setGruppo("conto")}>Conto</button>
+      </div>
+
+      <div className="card">
+        <div className="cardhead" style={{marginBottom: 6}}>
+          <span className="h2">{lato === "Uscita" ? "Uscite" : "Entrate"} · {periodoTesto}</span>
+          <span className="num" style={{fontWeight: 700}}>{eur(totale)}</span>
+        </div>
+        {confrontoTesto && totalePrima > 0 &&
+          <p className="small" style={{marginTop: 0}}>
+            <span className={delta > 0 ? (lato === "Uscita" ? "out-c" : "in-c") : (lato === "Uscita" ? "in-c" : "out-c")}>
+              {delta > 0 ? "▲" : "▼"} {eur(Math.abs(delta))} ({Math.abs(totalePrima ? delta / totalePrima * 100 : 0).toFixed(0)}%)
+            </span> <span className="muted">rispetto al {confrontoTesto}</span>
+          </p>}
+
+        {voci.length === 0 ? <Empty>Nessun movimento in questo periodo.</Empty> :
+          voci.map(v => {
+            const d = v.tot - v.prima;
+            const perc = totale ? v.tot / totale * 100 : 0;
+            return (
+              <button key={v.id} onClick={() => setApri(v)}
+                style={{display: "block", width: "100%", textAlign: "left", background: "none", border: 0, padding: "10px 0", borderBottom: "1px solid var(--line)", cursor: "pointer"}}>
+                <div style={{display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 5}}>
+                  <span style={{fontWeight: 600, fontSize: 15.5}}>{v.nome}</span>
+                  <span className="num" style={{fontWeight: 700, whiteSpace: "nowrap"}}>{eur(v.tot)}</span>
+                </div>
+                <div className="bar" style={{marginBottom: 4}}><i style={{width: (v.tot / max * 100) + "%"}} /></div>
+                <div className="small muted" style={{display: "flex", justifyContent: "space-between", gap: 10}}>
+                  <span>{perc.toFixed(0)}% del totale · {v.n} {v.n === 1 ? "movimento" : "movimenti"}</span>
+                  {confrontoTesto && v.prima > 0 &&
+                    <span className={d > 0 ? (lato === "Uscita" ? "out-c" : "in-c") : (lato === "Uscita" ? "in-c" : "out-c")}>
+                      {d > 0 ? "+" : "−"}{eurK(Math.abs(d))}</span>}
+                  {confrontoTesto && v.prima === 0 && <span className="muted">nuova</span>}
+                </div>
+              </button>);
+          })}
+      </div>
+
+      {apri && <Sheet title={apri.nome} onClose={() => setApri(null)}
+        footer={<button className="btn" onClick={() => setApri(null)}>Chiudi</button>}>
+        <div className="grid g2" style={{marginBottom: 12}}>
+          <div className="kpi"><div className="lab">{periodoTesto}</div>
+            <div className="val num">{eurK(apri.tot)}</div></div>
+          <div className="kpi"><div className="lab">Media a movimento</div>
+            <div className="val num">{eurK(apri.n ? apri.tot / apri.n : 0)}</div>
+            <div className="hint">{apri.n} {apri.n === 1 ? "movimento" : "movimenti"}</div></div>
+        </div>
+        <div className="list">
+          {dettaglio.slice(0, 100).map(m => {
+            const c = categorie.find(x => x.id === m.categoriaId);
+            const p = membri.find(x => x.id === m.membroId);
+            return <Riga key={m.id} titolo={m.descrizione}
+              sotto={[dBreve(m.data), gruppo !== "categoria" && c ? c.nome : null, gruppo !== "membro" && p ? p.nome : null].filter(Boolean).join(" · ")}
+              importo={eur(num(m.importo))} colore={lato === "Entrata" ? "in-c" : "out-c"} />;
+          })}
+        </div>
+        {dettaglio.length > 100 && <p className="small muted">Mostrati i primi 100 di {dettaglio.length}.</p>}
+      </Sheet>}
+    </div>
+  );
+}
+
 /* ─────────── APP ─────────── */
 const TITOLI = {
   dashboard: "Dashboard", movimenti: "Movimenti", scadenze: "Scadenze", bollette: "Bollette",
-  previsioni: "Previsione", anagrafiche: "Anagrafiche", utenti: "Utenti", registro: "Registro attività"
+  analisi: "Analisi", previsioni: "Previsione", anagrafiche: "Anagrafiche", utenti: "Utenti", registro: "Registro attività"
 };
 const TAB = [["dashboard", "Dashboard", "◉"], ["movimenti", "Movimenti", "⇅"], ["scadenze", "Scadenze", "◷"],
   ["bollette", "Bollette", "❑"], ["altro", "Altro", "⋯"]];
-const NAV_DESK = [["dashboard", "Dashboard", "◉"], ["movimenti", "Movimenti", "⇅"], ["scadenze", "Scadenze", "◷"],
-  ["bollette", "Bollette", "❑"], ["previsioni", "Previsione", "◇"], ["anagrafiche", "Anagrafiche", "☰"]];
+const NAV_DESK = [["dashboard", "Dashboard", "◉"], ["movimenti", "Movimenti", "⇅"], ["analisi", "Analisi", "▤"],
+  ["scadenze", "Scadenze", "◷"], ["bollette", "Bollette", "❑"], ["previsioni", "Previsione", "◇"],
+  ["anagrafiche", "Anagrafiche", "☰"]];
 const NAV_ADMIN = [["utenti", "Utenti", "◍"], ["registro", "Registro attività", "≡"]];
 const PAR_DEFAULT = {mesi: 6, storico: 6, soglia: 2000, imprevisti: 10, entrateManuale: "", usciteManuale: ""};
 const AGGIUNGIBILE = {movimenti: 1, scadenze: 1, bollette: 1};
@@ -1621,6 +1786,7 @@ function AppCollegata() {
     <>
       {pag === "dashboard" && <Dashboard {...props} />}
       {pag === "movimenti" && <Movimenti {...props} />}
+      {pag === "analisi" && <Analisi {...props} />}
       {pag === "scadenze" && <Scadenze {...props} />}
       {pag === "bollette" && <Bollette {...props} />}
       {pag === "previsioni" && <Previsioni {...props} />}
@@ -1662,13 +1828,14 @@ function AppCollegata() {
 
       <nav className="tabbar">
         {TAB.map(([k, t, i]) => (
-          <button key={k} className={(k === "altro" ? (["previsioni", "anagrafiche", "utenti", "registro"].includes(pag) ? "on" : "") : (pag === k ? "on" : ""))}
+          <button key={k} className={(k === "altro" ? (["analisi", "previsioni", "anagrafiche", "utenti", "registro"].includes(pag) ? "on" : "") : (pag === k ? "on" : ""))}
             onClick={() => k === "altro" ? setAltro(true) : vai(k)}>
             <span className="ic">{i}</span>{t}</button>))}
       </nav>
 
       {altro && <Sheet title="Altro" onClose={() => setAltro(false)}>
         <div className="list">
+          <Riga titolo="Analisi" sotto="Entrate e uscite per categoria, persona e conto" onClick={() => vai("analisi")} />
           <Riga titolo="Previsione" sotto="Come si muove la giacenza nei prossimi mesi" onClick={() => vai("previsioni")} />
           <Riga titolo="Anagrafiche" sotto="Conti e carte, membri, categorie" onClick={() => vai("anagrafiche")} />
           {admin && <Riga titolo="Utenti" sotto="Chi può entrare nell'app" onClick={() => vai("utenti")} />}
