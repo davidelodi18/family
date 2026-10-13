@@ -231,7 +231,9 @@ const ref = (p) => db.ref(ROOT + "/" + p);
 const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
 const MESI_B = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-const todayISO = () => new Date().toISOString().slice(0, 10);
+// data locale (non UTC): dopo mezzanotte in Italia deve già essere il giorno nuovo
+const isoLocale = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const todayISO = () => isoLocale(new Date());
 
 function eur(n, seg) {
   const v = Number(n) || 0;
@@ -1029,15 +1031,28 @@ function FormBolletta({b, onSave, onDelete, onClose}) {
 }
 
 /* ─────────── motore previsione ─────────── */
+// data in cui le spese di un mese vengono addebitate sul conto (il mese dopo, al giorno di addebito)
+function dataAddebitoCarta(carta, iso) {
+  return dateInMonth(addMonths(mKey(iso), 1), Number(carta.giornoAddebito) || 15);
+}
+
 function calcolaSaldi(conti, movimenti) {
   const s = {};
-  conti.forEach(c => { s[c.id] = num(c.saldoIniziale); });
   const oggi = todayISO();
+  conti.forEach(c => {
+    if (c.tipo === "carta") {
+      // per la carta conta solo il debito non ancora addebitato sul conto
+      const residuo = c.dataSaldo && dataAddebitoCarta(c, c.dataSaldo) < oggi ? 0 : num(c.saldoIniziale);
+      s[c.id] = residuo;
+    } else s[c.id] = num(c.saldoIniziale);
+  });
   movimenti.forEach(m => {
     if (!m.contoId || s[m.contoId] === undefined) return;
     if (String(m.data) > oggi) return;
     const c = conti.find(x => x.id === m.contoId);
     if (c && c.dataSaldo && String(m.data) < c.dataSaldo) return;
+    // spesa con carta già addebitata sul conto: non pesa più sul saldo della carta
+    if (c && c.tipo === "carta" && dataAddebitoCarta(c, m.data) < oggi) return;
     s[m.contoId] += (m.tipo === "Entrata" ? 1 : -1) * num(m.importo);
   });
   return s;
@@ -1049,7 +1064,13 @@ function previsione(data, saldi, par) {
   const nMesi = par.mesi || 6, storico = par.storico || 6;
   const correnti = conti.filter(c => c.tipo !== "carta");
   const carte = conti.filter(c => c.tipo === "carta");
-  const esclusa = id => { const c = categorie.find(x => x.id === id); return c && c.escludiDaPrevisione; };
+  // categorie delle scadenze ricorrenti: quelle spese arrivano già dalle scadenze, quindi non vanno nelle medie
+  const catScadenze = new Set(scadenze.filter(s => PASSO[s.ricorrenza] && s.categoriaId).map(s => s.categoriaId));
+  const esclusa = id => {
+    if (id && catScadenze.has(id)) return true;
+    const c = categorie.find(x => x.id === id); return c && c.escludiDaPrevisione;
+  };
+  const nomiCatScadenze = [...catScadenze].map(id => (categorie.find(x => x.id === id) || {}).nome).filter(Boolean).sort();
 
   const mesiStorico = [];
   for (let i = 1; i <= storico; i++) mesiStorico.push(addMonths(meseCorr, -i));
@@ -1109,7 +1130,7 @@ function previsione(data, saldi, par) {
       addebiti, dettCarte, imprevisti, saldoFine: fine});
     saldo = fine;
   }
-  return {righe, soglia: num(par.soglia), entrateMedie, usciteMedie};
+  return {righe, soglia: num(par.soglia), entrateMedie, usciteMedie, nomiCatScadenze};
 }
 
 /* ─────────── PREVISIONI ─────────── */
@@ -1177,6 +1198,11 @@ function Previsioni({data, saldi, par, setPar, prev, mobile}) {
         <p className="small muted">
           Le medie escludono le categorie marcate come fuori previsione. Le spese sulle carte non entrano nei consumi:
           rientrano come addebito il mese successivo.
+        </p>
+        <p className="small muted">
+          Escluse anche le categorie usate dalle scadenze ricorrenti, che entrano nel mese in cui scadono
+          {prev.nomiCatScadenze.length > 0 ? ": " + prev.nomiCatScadenze.join(", ") + "." : " (al momento nessuna)."}
+          {" "}Se una di queste categorie contiene anche spese fuori dalle scadenze, crea una categoria a parte per le scadenze.
         </p>
       </Sheet>}
 
