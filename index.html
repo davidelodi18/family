@@ -935,6 +935,22 @@ function Bollette({data, log, utente, mobile, nuovoSegnale}) {
     log(b.id ? "Bolletta modificata" : "Bolletta aggiunta", b.fornitore + " · " + b.tipo);
     setEdit(null);
   }
+  const [esitoPdf, setEsitoPdf] = useState(null);
+  async function allegaInBlocco(files) {
+    const esito = {ok: [], senza: [], grandi: []};
+    for (const file of Array.from(files)) {
+      const chiave = file.name.replace(/\.[^.]+$/, "").trim();
+      const b = chiave.length >= 4 && data.bollette.find(x =>
+        String(x.note || "").includes(chiave) || String(x.periodo || "").includes(chiave) || String(x.fornitore || "").includes(chiave));
+      if (!b) { esito.senza.push(file.name); continue; }
+      if (file.size > MAX_ALLEGATO) { esito.grandi.push(file.name); continue; }
+      const dataUrl = await new Promise((ok, ko) => { const r = new FileReader(); r.onload = e => ok(e.target.result); r.onerror = ko; r.readAsDataURL(file); });
+      await ref("bollette/" + b.id + "/allegato").set({nome: file.name, mime: file.type || "application/pdf", dataUrl});
+      esito.ok.push(file.name + " → " + b.fornitore + " " + (b.periodo || ""));
+    }
+    if (esito.ok.length) log("Allegati caricati in blocco", esito.ok.length + " documenti");
+    setEsitoPdf(esito);
+  }
   async function elimina(b) {
     if (!confirm("Eliminare questa bolletta?")) return;
     await ref("bollette/" + b.id).remove(); log("Bolletta eliminata", b.fornitore + " · " + b.tipo); setEdit(null);
@@ -945,7 +961,16 @@ function Bollette({data, log, utente, mobile, nuovoSegnale}) {
       {!mobile && <><h1 className="h1">Bollette</h1>
         <p className="sub">Divise tra la casa di famiglia e l'appartamento in affitto, con il documento allegato.</p>
         <div className="btnrow" style={{marginBottom: 14}}>
-          <button className="btn" onClick={() => setEdit(VUOTA_BOLL(ambito))}>Aggiungi bolletta</button></div></>}
+          <button className="btn" onClick={() => setEdit(VUOTA_BOLL(ambito))}>Aggiungi bolletta</button>
+          <BottoneAllegaBlocco onFiles={allegaInBlocco} /></div></>}
+      {mobile && <div className="btnrow" style={{marginBottom: 12}}><BottoneAllegaBlocco onFiles={allegaInBlocco} /></div>}
+      {esitoPdf && <div className="card" style={{marginBottom: 14}}>
+        <div className="cardhead"><span className="h2">Allegati in blocco</span>
+          <button className="btn ghost sm" onClick={() => setEsitoPdf(null)}>Chiudi</button></div>
+        <p className="small" style={{margin: "4px 0"}}><b>{esitoPdf.ok.length}</b> allegati a una bolletta.</p>
+        {esitoPdf.senza.length > 0 && <p className="small warn-c" style={{margin: "4px 0"}}>Nessuna bolletta trovata per: {esitoPdf.senza.join(", ")}. Il nome del file deve comparire nelle note della bolletta (es. il numero di fattura).</p>}
+        {esitoPdf.grandi.length > 0 && <p className="small warn-c" style={{margin: "4px 0"}}>Oltre 700 KB, non caricati: {esitoPdf.grandi.join(", ")}.</p>}
+      </div>}
 
       <div className="segment" style={{marginBottom: 14}}>
         <button className={ambito === "famiglia" ? "on" : ""} onClick={() => setAmbito("famiglia")}>Famiglia</button>
@@ -966,6 +991,18 @@ function Bollette({data, log, utente, mobile, nuovoSegnale}) {
 
       {edit && <FormBolletta b={edit} onSave={salva} onDelete={elimina} onClose={() => setEdit(null)} />}
     </div>
+  );
+}
+
+function BottoneAllegaBlocco({onFiles}) {
+  const [occupato, setOccupato] = useState(false);
+  return (
+    <label className="btn ghost" style={{cursor: "pointer", display: "inline-flex", alignItems: "center"}}
+      title="Seleziona più PDF: ognuno va alla bolletta che ha il nome del file (es. il numero di fattura) nelle note">
+      {occupato ? "Caricamento…" : "Allega PDF in blocco"}
+      <input type="file" multiple accept=".pdf,image/*" style={{display: "none"}} disabled={occupato}
+        onChange={async e => { const f = e.target.files; if (!f || !f.length) return; setOccupato(true);
+          try { await onFiles(f); } finally { setOccupato(false); e.target.value = ""; } }} /></label>
   );
 }
 
